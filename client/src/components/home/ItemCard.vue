@@ -155,15 +155,35 @@
       </template>
 
       <!-- Lost status actions -->
-      <button
-        v-else-if="item.status === 'Lost'"
-        type="button"
-        class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-tertiary hover:bg-tertiary-container text-on-tertiary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px] cursor-pointer"
-        @click="$emit('spotted', item)"
-      >
-        <span class="material-symbols-outlined text-[18px]">thumb_up</span>
-        <span>I Spotted / Found This</span>
-      </button>
+      <template v-else-if="item.status === 'Lost'">
+        <!-- Listing Owner View: Review Found Reports -->
+        <button
+          v-if="isOwner"
+          type="button"
+          class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px] cursor-pointer"
+          @click="$emit('review-found-reports', item)"
+        >
+          <span class="material-symbols-outlined text-[18px]">rate_review</span>
+          <span>Review Found Reports</span>
+          <span
+            v-if="item.pending_reports_count > 0"
+            class="ml-1 px-1.5 py-0.5 bg-white text-primary text-[10px] font-extrabold rounded-full"
+          >
+            {{ item.pending_reports_count }}
+          </span>
+        </button>
+
+        <!-- Other Student View: I Found This -->
+        <button
+          v-else
+          type="button"
+          class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-tertiary hover:bg-tertiary-container text-on-tertiary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px] cursor-pointer"
+          @click="$emit('found-this', item)"
+        >
+          <span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+          <span>I Found This</span>
+        </button>
+      </template>
 
       <!-- Claimed (Reunited Archive) status actions -->
       <div
@@ -178,8 +198,8 @@
           v-if="isOwner"
           type="button"
           class="h-10 sm:h-11 px-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-xs flex items-center justify-center gap-1 border border-outline-variant/30 cursor-pointer"
-          title="View approved claim record"
-          @click="$emit('review-claims', item)"
+          title="View reunion record"
+          @click="$emit('view-reunion-record', item)"
         >
           <span class="material-symbols-outlined text-[16px]">history</span>
           <span>Record</span>
@@ -203,7 +223,14 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['claim', 'spotted', 'review-claims']);
+const emit = defineEmits([
+  'claim',
+  'spotted',
+  'review-claims',
+  'found-this',
+  'review-found-reports',
+  'view-reunion-record'
+]);
 
 const isOwner = computed(() => {
   return (

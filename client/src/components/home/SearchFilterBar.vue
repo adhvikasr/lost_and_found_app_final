@@ -123,24 +123,15 @@
             </span>
           </div>
 
-          <!-- Location Select -->
-          <div class="relative col-span-1 sm:w-auto">
-            <select
-              :value="modelValue.location"
-              class="w-full sm:w-auto h-10 pl-3 pr-8 rounded-lg bg-surface-container-low text-on-surface font-label-md text-xs sm:text-label-md focus:outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer min-h-[40px]"
-              @change="onFilterChange('location', $event.target.value)"
+          <!-- Location Filter Text Field -->
+          <div class="col-span-1 sm:flex-none">
+            <input
+              :value="modelValue.location === 'all' ? '' : (modelValue.location || '')"
+              type="text"
+              placeholder="Filter by Location..."
+              class="h-10 pl-3 pr-3 rounded-lg bg-surface-container-low text-on-surface font-label-md text-xs sm:text-label-md placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary border-0 w-full sm:w-36 lg:w-40 min-h-[40px]"
+              @input="onLocationInput"
             >
-              <option value="all">All Locations</option>
-              <option value="Library">Library</option>
-              <option value="Student Union">Student Union</option>
-              <option value="Science">Science Building</option>
-              <option value="Dormitories">Dormitories</option>
-              <option value="Rec Center">Rec Center</option>
-              <option value="Engineering">Engineering</option>
-            </select>
-            <span class="material-symbols-outlined pointer-events-none absolute right-2 top-2.5 text-[18px] text-outline">
-              arrow_drop_down
-            </span>
           </div>
 
           <!-- Refresh Button -->
@@ -202,6 +193,14 @@ function onNameInput(e) {
   emit('update:modelValue', {
     ...props.modelValue,
     nameFilter: e.target.value
+  });
+  emit('search-change');
+}
+
+function onLocationInput(e) {
+  emit('update:modelValue', {
+    ...props.modelValue,
+    location: e.target.value
   });
   emit('search-change');
 }

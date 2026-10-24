@@ -82,6 +82,40 @@ try {
       CREATE INDEX IF NOT EXISTS idx_claims_claimant ON claims (claimant_student_id);
       CREATE INDEX IF NOT EXISTS idx_claims_status ON claims (status);
 
+      CREATE TABLE IF NOT EXISTS found_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER NOT NULL,
+        finder_username TEXT NOT NULL,
+        finder_student_id TEXT NOT NULL,
+        finder_name TEXT NOT NULL,
+        location TEXT NOT NULL,
+        additional_details TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('Pending', 'Confirmed', 'Rejected')) DEFAULT 'Pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        decided_at DATETIME,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_found_reports_item_id ON found_reports (item_id);
+      CREATE INDEX IF NOT EXISTS idx_found_reports_finder ON found_reports (finder_student_id);
+      CREATE INDEX IF NOT EXISTS idx_found_reports_status ON found_reports (status);
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipient_student_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        item_id INTEGER,
+        report_id INTEGER,
+        is_read INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient_student_id, is_read);
+      CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC);
+
       CREATE TABLE IF NOT EXISTS accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -155,6 +189,40 @@ try {
       CREATE INDEX IF NOT EXISTS idx_claims_item_id ON claims (item_id);
       CREATE INDEX IF NOT EXISTS idx_claims_claimant ON claims (claimant_student_id);
       CREATE INDEX IF NOT EXISTS idx_claims_status ON claims (status);
+
+      CREATE TABLE IF NOT EXISTS found_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER NOT NULL,
+        finder_username TEXT NOT NULL,
+        finder_student_id TEXT NOT NULL,
+        finder_name TEXT NOT NULL,
+        location TEXT NOT NULL,
+        additional_details TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('Pending', 'Confirmed', 'Rejected')) DEFAULT 'Pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        decided_at DATETIME,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_found_reports_item_id ON found_reports (item_id);
+      CREATE INDEX IF NOT EXISTS idx_found_reports_finder ON found_reports (finder_student_id);
+      CREATE INDEX IF NOT EXISTS idx_found_reports_status ON found_reports (status);
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipient_student_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        item_id INTEGER,
+        report_id INTEGER,
+        is_read INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient_student_id, is_read);
+      CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC);
 
       CREATE TABLE IF NOT EXISTS accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -384,7 +452,8 @@ export const getAllItems = ({ search, category, status, location } = {}) => {
       items.owner_username, 
       items.owner_student_id, 
       items.created_at,
-      (SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id AND claims.status = 'Pending') as pending_claims_count
+      (SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id AND claims.status = 'Pending') as pending_claims_count,
+      (SELECT COUNT(*) FROM found_reports WHERE found_reports.item_id = items.id AND found_reports.status = 'Pending') as pending_reports_count
     FROM items 
     WHERE 1=1
   `;
@@ -402,9 +471,10 @@ export const getAllItems = ({ search, category, status, location } = {}) => {
     params.push(normalizedStatus);
   }
 
-  if (location && location !== 'all') {
-    query += ' AND location LIKE ?';
-    params.push(`%${location.trim()}%`);
+  if (location && location !== 'all' && location.trim() !== '') {
+    query += ' AND (location LIKE ? OR (desk_location IS NOT NULL AND desk_location LIKE ?))';
+    const locPattern = `%${location.trim()}%`;
+    params.push(locPattern, locPattern);
   }
 
   if (search && search.trim() !== '') {
@@ -438,7 +508,8 @@ export const getItemById = (id) => {
       items.owner_username, 
       items.owner_student_id, 
       items.created_at,
-      (SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id AND claims.status = 'Pending') as pending_claims_count
+      (SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id AND claims.status = 'Pending') as pending_claims_count,
+      (SELECT COUNT(*) FROM found_reports WHERE found_reports.item_id = items.id AND found_reports.status = 'Pending') as pending_reports_count
     FROM items 
     WHERE id = ?
   `);
@@ -687,4 +758,367 @@ export const getClaimsByClaimant = (studentId) => {
     ORDER BY claims.created_at DESC
   `);
   return stmt.all(studentId);
+};
+
+// ==========================================
+// "I Found This" Reports Database Operations
+// ==========================================
+
+/**
+ * Create a new found report with initial 'Pending' status.
+ */
+export const createFoundReportRecord = ({
+  itemId,
+  finderUsername,
+  finderStudentId,
+  finderName,
+  location,
+  additionalDetails
+}) => {
+  const stmt = dbInstance.prepare(`
+    INSERT INTO found_reports (
+      item_id,
+      finder_username,
+      finder_student_id,
+      finder_name,
+      location,
+      additional_details,
+      status
+    )
+    VALUES (?, ?, ?, ?, ?, ?, 'Pending')
+  `);
+  const result = stmt.run(
+    itemId,
+    finderUsername.trim(),
+    finderStudentId.trim().toUpperCase(),
+    finderName.trim(),
+    location.trim(),
+    additionalDetails.trim()
+  );
+  return getFoundReportById(result.lastInsertRowid);
+};
+
+/**
+ * Retrieve a found report by its ID with associated item details.
+ */
+export const getFoundReportById = (id) => {
+  const stmt = dbInstance.prepare(`
+    SELECT 
+      found_reports.*,
+      items.name as item_name,
+      items.category as item_category,
+      items.location as item_lost_location,
+      items.image_url as item_image_url,
+      items.status as item_status,
+      items.owner_student_id as item_owner_student_id,
+      items.owner_username as item_owner_username
+    FROM found_reports
+    JOIN items ON found_reports.item_id = items.id
+    WHERE found_reports.id = ?
+  `);
+  return stmt.get(id);
+};
+
+/**
+ * Retrieve all found reports for a specific item (for owner review).
+ */
+export const getFoundReportsByItemId = (itemId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT 
+      found_reports.*,
+      items.name as item_name,
+      items.category as item_category,
+      items.location as item_lost_location,
+      items.image_url as item_image_url,
+      items.status as item_status
+    FROM found_reports
+    JOIN items ON found_reports.item_id = items.id
+    WHERE found_reports.item_id = ?
+    ORDER BY found_reports.created_at DESC, found_reports.id DESC
+  `);
+  return stmt.all(itemId);
+};
+
+/**
+ * Check if a finder already has a pending report on an item.
+ */
+export const getPendingFoundReport = (itemId, studentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT * FROM found_reports
+    WHERE item_id = ? AND UPPER(finder_student_id) = UPPER(?) AND status = 'Pending'
+  `);
+  return stmt.get(itemId, studentId.trim());
+};
+
+/**
+ * Retrieve all found reports submitted for items owned by a specific student.
+ */
+export const getFoundReportsByOwner = (ownerStudentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT 
+      found_reports.*,
+      items.name as item_name,
+      items.category as item_category,
+      items.location as item_lost_location,
+      items.image_url as item_image_url,
+      items.status as item_status
+    FROM found_reports
+    JOIN items ON found_reports.item_id = items.id
+    WHERE UPPER(items.owner_student_id) = UPPER(?)
+    ORDER BY found_reports.created_at DESC, found_reports.id DESC
+  `);
+  return stmt.all(ownerStudentId.trim());
+};
+
+/**
+ * Retrieve all found reports submitted by a specific student as finder.
+ */
+export const getFoundReportsByFinder = (finderStudentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT 
+      found_reports.*,
+      items.name as item_name,
+      items.category as item_category,
+      items.location as item_lost_location,
+      items.image_url as item_image_url,
+      items.status as item_status,
+      items.owner_student_id as item_owner_student_id
+    FROM found_reports
+    JOIN items ON found_reports.item_id = items.id
+    WHERE UPPER(found_reports.finder_student_id) = UPPER(?)
+    ORDER BY found_reports.created_at DESC, found_reports.id DESC
+  `);
+  return stmt.all(finderStudentId.trim());
+};
+
+/**
+ * Count pending found reports for items owned by a student.
+ */
+export const getPendingFoundReportsCountForOwner = (ownerStudentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT COUNT(*) as count
+    FROM found_reports
+    JOIN items ON found_reports.item_id = items.id
+    WHERE UPPER(items.owner_student_id) = UPPER(?) AND found_reports.status = 'Pending'
+  `);
+  return stmt.get(ownerStudentId.trim())?.count || 0;
+};
+
+/**
+ * Confirm a found report atomically using SQLite transaction.
+ * 1. Verifies report exists and is 'Pending'.
+ * 2. Verifies decider owns the associated Lost item.
+ * 3. Verifies item is still active ('Lost') and not already reunited.
+ * 4. Marks report as 'Confirmed' with decided_at timestamp.
+ * 5. Updates item status to 'Claimed' (Reunited Archive) and records reunion details.
+ * 6. Atomically rejects/closes any other Pending reports for this item.
+ * 7. Records database notifications for finders and owner.
+ */
+export const confirmFoundReportTransaction = (reportId, deciderStudentId) => {
+  const tx = dbInstance.transaction(() => {
+    // 1. Verify report exists
+    const report = dbInstance.prepare('SELECT * FROM found_reports WHERE id = ?').get(reportId);
+    if (!report) {
+      const err = new Error('Found report not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (report.status !== 'Pending') {
+      const err = new Error(`This report has already been decided (${report.status}).`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 2. Verify associated item exists
+    const item = dbInstance.prepare('SELECT * FROM items WHERE id = ?').get(report.item_id);
+    if (!item) {
+      const err = new Error('Associated item not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    // Verify decider owns the item
+    if (!item.owner_student_id || item.owner_student_id.toUpperCase() !== deciderStudentId.toUpperCase()) {
+      const err = new Error('Forbidden: Only the listing owner can confirm reports for this item.');
+      err.statusCode = 403;
+      throw err;
+    }
+    // Verify item is still active Lost
+    if (item.status !== 'Lost') {
+      const err = new Error(`Item is no longer available as an active Lost item (current status: ${item.status}).`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 3. Confirm this report
+    dbInstance.prepare(`
+      UPDATE found_reports
+      SET status = 'Confirmed', decided_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(report.id);
+
+    // 4. Update item status to 'Claimed' (Reunited Archive)
+    const reunionNote = `[Physically Reunited: Found by ${report.finder_name} (${report.finder_student_id}) at ${report.location}]`;
+    const updatedDesc = item.description ? `${item.description} ${reunionNote}` : reunionNote;
+    dbInstance.prepare(`
+      UPDATE items
+      SET status = 'Claimed', description = ?
+      WHERE id = ?
+    `).run(updatedDesc, item.id);
+
+    // 5. Reject any other pending reports for this item
+    const otherPending = dbInstance.prepare(`
+      SELECT * FROM found_reports
+      WHERE item_id = ? AND id != ? AND status = 'Pending'
+    `).all(item.id, report.id);
+
+    if (otherPending.length > 0) {
+      dbInstance.prepare(`
+        UPDATE found_reports
+        SET status = 'Rejected', decided_at = CURRENT_TIMESTAMP
+        WHERE item_id = ? AND id != ? AND status = 'Pending'
+      `).run(item.id, report.id);
+    }
+
+    // 6. Persistent database notifications
+    // Notification for confirmed finder
+    dbInstance.prepare(`
+      INSERT INTO notifications (recipient_student_id, type, title, message, item_id, report_id)
+      VALUES (?, 'found_report_confirmed', 'Found Report Confirmed! 🎉', ?, ?, ?)
+    `).run(
+      report.finder_student_id,
+      `Your report for "${item.name}" was confirmed by the owner! The item is now physically reunited.`,
+      item.id,
+      report.id
+    );
+
+    // Notifications for other finders whose reports were closed
+    const insertOtherNotif = dbInstance.prepare(`
+      INSERT INTO notifications (recipient_student_id, type, title, message, item_id, report_id)
+      VALUES (?, 'found_report_closed', 'Listing Reunited', ?, ?, ?)
+    `);
+    for (const other of otherPending) {
+      insertOtherNotif.run(
+        other.finder_student_id,
+        `Another report for "${item.name}" was confirmed by the owner. This listing has been marked as reunited.`,
+        item.id,
+        other.id
+      );
+    }
+
+    return {
+      report: getFoundReportById(reportId),
+      item: getItemById(item.id)
+    };
+  });
+
+  return tx();
+};
+
+/**
+ * Reject a found report for an item.
+ * Lost item remains in active 'Lost' status.
+ */
+export const rejectFoundReportTransaction = (reportId, deciderStudentId) => {
+  const tx = dbInstance.transaction(() => {
+    // 1. Verify report exists
+    const report = dbInstance.prepare('SELECT * FROM found_reports WHERE id = ?').get(reportId);
+    if (!report) {
+      const err = new Error('Found report not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (report.status !== 'Pending') {
+      const err = new Error(`This report has already been decided (${report.status}).`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 2. Verify associated item exists and decider ownership
+    const item = dbInstance.prepare('SELECT * FROM items WHERE id = ?').get(report.item_id);
+    if (!item) {
+      const err = new Error('Associated item not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (!item.owner_student_id || item.owner_student_id.toUpperCase() !== deciderStudentId.toUpperCase()) {
+      const err = new Error('Forbidden: Only the listing owner can reject reports for this item.');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    // 3. Mark report as 'Rejected'
+    dbInstance.prepare(`
+      UPDATE found_reports
+      SET status = 'Rejected', decided_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(report.id);
+
+    // 4. Send persistent notification to finder
+    dbInstance.prepare(`
+      INSERT INTO notifications (recipient_student_id, type, title, message, item_id, report_id)
+      VALUES (?, 'found_report_rejected', 'Found Report Status Update', ?, ?, ?)
+    `).run(
+      report.finder_student_id,
+      `Your found report for "${item.name}" was reviewed and rejected by the owner.`,
+      item.id,
+      report.id
+    );
+
+    return getFoundReportById(reportId);
+  });
+
+  return tx();
+};
+
+// ==========================================
+// Persistent Dashboard Notifications Operations
+// ==========================================
+
+export const createNotificationRecord = ({
+  recipientStudentId,
+  type,
+  title,
+  message,
+  itemId = null,
+  reportId = null
+}) => {
+  const stmt = dbInstance.prepare(`
+    INSERT INTO notifications (recipient_student_id, type, title, message, item_id, report_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const result = stmt.run(
+    recipientStudentId.trim().toUpperCase(),
+    type,
+    title,
+    message,
+    itemId,
+    reportId
+  );
+  return dbInstance.prepare('SELECT * FROM notifications WHERE id = ?').get(result.lastInsertRowid);
+};
+
+export const getNotificationsByStudent = (studentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT * FROM notifications
+    WHERE UPPER(recipient_student_id) = UPPER(?)
+    ORDER BY created_at DESC, id DESC
+    LIMIT 50
+  `);
+  return stmt.all(studentId.trim());
+};
+
+export const getUnreadNotificationCount = (studentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT COUNT(*) as count FROM notifications
+    WHERE UPPER(recipient_student_id) = UPPER(?) AND is_read = 0
+  `);
+  return stmt.get(studentId.trim())?.count || 0;
+};
+
+export const markNotificationsAsRead = (studentId) => {
+  dbInstance.prepare(`
+    UPDATE notifications
+    SET is_read = 1
+    WHERE UPPER(recipient_student_id) = UPPER(?) AND is_read = 0
+  `).run(studentId.trim());
 };

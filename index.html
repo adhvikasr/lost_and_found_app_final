@@ -308,17 +308,15 @@
                 <span class="material-symbols-outlined pointer-events-none absolute right-2 top-2.5 text-[18px] text-outline">arrow_drop_down</span>
               </div>
 
-              <!-- Location Filter Category (Added as requested, replacing 'all campus zones') -->
+              <!-- Location Filter Text Field -->
               <div class="relative">
-                <select class="h-10 pl-3 pr-8 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md focus:outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer" id="locationSelect" onchange="applyFilters()">
-                  <option value="all">All Locations</option>
-                  <option value="library">Library 3rd Floor Quiet Pods</option>
-                  <option value="student-union">Student Union Dining Terrace</option>
-                  <option value="science-hall">Science Hall Room 204</option>
-                  <option value="rec-center">North Rec Center Locker Area</option>
-                  <option value="engineering-hall">Engineering Hall Room B10</option>
-                </select>
-                <span class="material-symbols-outlined pointer-events-none absolute right-2 top-2.5 text-[18px] text-outline">arrow_drop_down</span>
+                <input
+                  type="text"
+                  id="locationFilterInput"
+                  placeholder="Filter by Location..."
+                  class="h-10 pl-3 pr-3 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary w-44"
+                  oninput="applyFilters()"
+                >
               </div>
 
               <!-- 'past 24 hours' time window selector and 'physically secured only' toggle removed as requested -->
@@ -755,7 +753,8 @@
     function applyFilters() {
       const searchTerm = (searchInput ? searchInput.value : '').toLowerCase().trim();
       const category = document.getElementById('categorySelect').value;
-      const location = document.getElementById('locationSelect').value;
+      const locFilterEl = document.getElementById('locationFilterInput') || document.getElementById('locationSelect');
+      const location = locFilterEl ? locFilterEl.value.trim().toLowerCase() : '';
 
       const cards = document.querySelectorAll('.item-card');
       const emptyState = document.getElementById('emptyStateContainer');
@@ -779,7 +778,7 @@
 
         const matchesStatus = (itemStatus === currentActiveTab);
         const matchesCategory = (category === 'all') || (itemCategory === category);
-        const matchesLocation = (location === 'all') || (itemLocation === location);
+        const matchesLocation = !location || location === 'all' || itemLocation.toLowerCase().includes(location) || itemText.includes(location);
         const matchesSearch = !searchTerm || itemText.includes(searchTerm);
 
         if (matchesStatus && matchesCategory && matchesLocation && matchesSearch) {
@@ -835,7 +834,8 @@
       if (searchInput) searchInput.value = '';
       if (headerQuickSearch) headerQuickSearch.value = '';
       document.getElementById('categorySelect').value = 'all';
-      document.getElementById('locationSelect').value = 'all';
+      const locFilterEl = document.getElementById('locationFilterInput') || document.getElementById('locationSelect');
+      if (locFilterEl) locFilterEl.value = '';
       const sortSelect = document.getElementById('sortSelect');
       if (sortSelect) sortSelect.value = 'recent';
       switchFeedTab('found');

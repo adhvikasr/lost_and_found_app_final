@@ -71,6 +71,9 @@
           @claim="$emit('claim', $event)"
           @spotted="$emit('spotted', $event)"
           @review-claims="$emit('review-claims', $event)"
+          @found-this="$emit('found-this', $event)"
+          @review-found-reports="$emit('review-found-reports', $event)"
+          @view-reunion-record="$emit('view-reunion-record', $event)"
         />
       </div>
 
@@ -131,5 +134,15 @@ defineProps({
   }
 });
 
-defineEmits(['claim', 'spotted', 'open-report', 'reset-filters', 'update:sortBy', 'review-claims']);
+defineEmits([
+  'claim',
+  'spotted',
+  'open-report',
+  'reset-filters',
+  'update:sortBy',
+  'review-claims',
+  'found-this',
+  'review-found-reports',
+  'view-reunion-record'
+]);
 </script>

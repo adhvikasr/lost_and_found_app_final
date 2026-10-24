@@ -131,6 +131,18 @@ npm run dev:client
 | `POST` | `/api/claims/:id/reject` | Reject claim; item remains in active Found listings |
 | `GET` | `/api/claims/my` | View all claims submitted by current student |
 
+### "I Found This" & Found Reports Workflow
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/items/:id/found-reports` | Submit found report with location & details (associated with authenticated finder) |
+| `GET` | `/api/items/:id/found-reports` | View all found reports for a Lost item (restricted to listing owner) |
+| `GET` | `/api/found-reports/owner` | View all found reports received across owner's Lost listings with pending count |
+| `GET` | `/api/found-reports/my` | View all found reports submitted by the authenticated student |
+| `POST` | `/api/found-reports/:id/confirm` | Confirm report atomically; moves Lost item immediately to Reunited Archive |
+| `POST` | `/api/found-reports/:id/reject` | Reject report; item remains active in Lost listings |
+| `GET` | `/api/notifications` | View persistent notifications and pending report indicators |
+| `POST` | `/api/notifications/read` | Mark all unread notifications as read |
+
 ---
 
 ## 👥 Demo Authentication Accounts
@@ -151,11 +163,11 @@ The application includes five preset demonstration accounts:
 
 ## 🧪 Automated Testing
 
-Run the full end-to-end authentication and claim workflow test suite:
+Run the full end-to-end authentication, claim verification, and "I Found This" workflow test suite:
 ```bash
 npm test
 ```
-All 42 assertions test session management, account switching, self-claim prevention, owner-only authorization, atomic claim approvals, and SQLite database persistence.
+All 74 assertions test session management, account switching, self-claim & self-report prevention, owner-only authorization, atomic claim approvals, atomic found report confirmations, Reunited Archive transitions, persistent in-app notifications, and SQLite database persistence.
 
 ---
 

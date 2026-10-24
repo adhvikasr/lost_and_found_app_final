@@ -26,7 +26,9 @@
       :is-online="serverStatus.online"
       :total-items="stats.total || items.length"
       :current-user="currentUser"
+      :pending-reports-count="pendingReportsCount"
       @open-report="openReportModal"
+      @open-found-reports="openFoundReportsModal('owner', null)"
       @logout="handleLogout"
     />
 
@@ -36,6 +38,33 @@
       <HeroWorkspace
         @open-report="openReportModal"
       />
+
+      <!-- Found Reports Notification Banner for Owner -->
+      <div v-if="pendingReportsCount > 0" class="w-full px-4 sm:px-6 lg:px-8 mt-2 mb-2">
+        <div class="max-w-7xl mx-auto bg-amber-500/10 p-4 sm:p-5 rounded-2xl border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div class="flex items-center gap-3 text-amber-900">
+            <span class="material-symbols-outlined text-[28px] text-amber-600 flex-shrink-0 animate-pulse">
+              notifications_active
+            </span>
+            <div>
+              <span class="font-headline-sm text-sm sm:text-headline-sm font-bold block text-on-surface">
+                PENDING FOUND REPORTS: {{ pendingReportsCount }} report{{ pendingReportsCount > 1 ? 's' : '' }} on your Lost items waiting for your review
+              </span>
+              <span class="font-body-sm text-xs sm:text-body-sm text-on-surface-variant">
+                Students have reported finding belongings matching your lost listings. Review details to confirm physical reunion.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-label-md text-xs sm:text-label-md flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer self-end sm:self-center"
+            @click="openFoundReportsModal('owner', null)"
+          >
+            <span class="material-symbols-outlined text-[18px]">rate_review</span>
+            <span>Review Found Reports ({{ pendingReportsCount }})</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Instant Search & Faceted Filter Section -->
       <SearchFilterBar
@@ -77,7 +106,10 @@
         :current-user="currentUser"
         v-model:sort-by="sortBy"
         @claim="openClaimModal"
-        @spotted="openSpottedModal"
+        @spotted="openFoundReportModal"
+        @found-this="openFoundReportModal"
+        @review-found-reports="(item) => openFoundReportsModal('owner', item)"
+        @view-reunion-record="handleViewReunionRecord"
         @open-report="openReportModal"
         @reset-filters="resetFilters"
         @review-claims="openReviewClaimsModal"
@@ -90,6 +122,25 @@
     />
 
     <!-- Modals -->
+    <FoundReportModal
+      :is-open="isFoundReportModalOpen"
+      :item="selectedItemForFoundReport"
+      :current-user="currentUser"
+      @close="isFoundReportModalOpen = false"
+      @submitted="handleFoundReportSubmitted"
+    />
+
+    <FoundReportsModal
+      :is-open="isFoundReportsModalOpen"
+      :initial-tab="foundReportsInitialTab"
+      :initial-item="foundReportsInitialItem"
+      :current-user="currentUser"
+      @close="isFoundReportsModalOpen = false"
+      @report-confirmed="handleFoundReportConfirmed"
+      @report-rejected="handleFoundReportRejected"
+      @refresh="fetchNotificationsSummary"
+    />
+
     <ReportItemModal
       :is-open="isReportModalOpen"
       :type="reportModalType"
@@ -148,6 +199,8 @@ import ItemGrid from './components/home/ItemGrid.vue';
 import ReportItemModal from './components/modals/ReportItemModal.vue';
 import ClaimModal from './components/modals/ClaimModal.vue';
 import ReviewClaimsModal from './components/modals/ReviewClaimsModal.vue';
+import FoundReportModal from './components/modals/FoundReportModal.vue';
+import FoundReportsModal from './components/modals/FoundReportsModal.vue';
 import SpottedModal from './components/modals/SpottedModal.vue';
 import KeywordAlertModal from './components/modals/KeywordAlertModal.vue';
 import InfoModal from './components/modals/InfoModal.vue';
@@ -187,7 +240,7 @@ const filters = reactive({
   nameFilter: '',
   status: 'all',
   category: 'all',
-  location: 'all'
+  location: ''
 });
 
 // Modals State
@@ -199,6 +252,12 @@ const isReviewClaimsModalOpen = ref(false);
 const selectedItemForReviewClaims = ref(null);
 const isSpottedModalOpen = ref(false);
 const selectedItemForSpotted = ref(null);
+const isFoundReportModalOpen = ref(false);
+const selectedItemForFoundReport = ref(null);
+const isFoundReportsModalOpen = ref(false);
+const foundReportsInitialTab = ref('owner');
+const foundReportsInitialItem = ref(null);
+const pendingReportsCount = ref(0);
 const isInfoModalOpen = ref(false);
 const infoModalType = ref('faq');
 
@@ -229,6 +288,15 @@ const filteredItems = computed(() => {
   if (filters.nameFilter && filters.nameFilter.trim()) {
     const q = filters.nameFilter.trim().toLowerCase();
     list = list.filter(i => (i.name || '').toLowerCase().includes(q));
+  }
+
+  // Location filter
+  if (filters.location && filters.location !== 'all' && filters.location.trim()) {
+    const loc = filters.location.trim().toLowerCase();
+    list = list.filter(i => 
+      (i.location || '').toLowerCase().includes(loc) ||
+      (i.desk_location || '').toLowerCase().includes(loc)
+    );
   }
 
   // Sort
@@ -263,7 +331,7 @@ async function checkSession() {
       if (contentType.includes('application/json')) {
         const data = await res.json();
         currentUser.value = data.user;
-        await Promise.all([fetchHealth(), fetchStats(), fetchItems()]);
+        await Promise.all([fetchHealth(), fetchStats(), fetchItems(), fetchNotificationsSummary()]);
       } else {
         currentUser.value = null;
       }
@@ -283,6 +351,7 @@ async function handleLoginSuccess(user) {
   fetchHealth();
   fetchStats();
   fetchItems();
+  fetchNotificationsSummary();
   await nextTick();
   if (toastRef.value) {
     toastRef.value.show({
@@ -304,6 +373,23 @@ async function handleLogout() {
   } finally {
     currentUser.value = null;
     items.value = [];
+    pendingReportsCount.value = 0;
+  }
+}
+
+async function fetchNotificationsSummary() {
+  if (!currentUser.value) {
+    pendingReportsCount.value = 0;
+    return;
+  }
+  try {
+    const res = await fetch('/api/notifications', { credentials: 'include' });
+    if (res.ok) {
+      const json = await res.json();
+      pendingReportsCount.value = json.pending_reports_count || 0;
+    }
+  } catch (err) {
+    console.error('Failed to fetch notifications summary:', err);
   }
 }
 
@@ -382,7 +468,7 @@ function resetFilters() {
   filters.nameFilter = '';
   filters.status = 'all';
   filters.category = 'all';
-  filters.location = 'all';
+  filters.location = '';
   currentActiveTab.value = 'active';
   fetchItems();
   fetchStats();
@@ -410,6 +496,17 @@ function openReviewClaimsModal(item) {
   isReviewClaimsModalOpen.value = true;
 }
 
+function openFoundReportModal(item) {
+  selectedItemForFoundReport.value = item;
+  isFoundReportModalOpen.value = true;
+}
+
+function openFoundReportsModal(tab = 'owner', item = null) {
+  foundReportsInitialTab.value = tab;
+  foundReportsInitialItem.value = item;
+  isFoundReportsModalOpen.value = true;
+}
+
 function openSpottedModal(item) {
   selectedItemForSpotted.value = item;
   isSpottedModalOpen.value = true;
@@ -420,9 +517,58 @@ function openInfoModal(type) {
   isInfoModalOpen.value = true;
 }
 
+function handleFoundReportSubmitted({ report, item }) {
+  fetchItems();
+  fetchStats();
+  fetchNotificationsSummary();
+  if (toastRef.value) {
+    toastRef.value.show({
+      t: 'Found Report Submitted! 🎉',
+      m: `Your report for "${item.name}" was sent to the owner for review.`,
+      variant: 'success'
+    });
+  }
+}
+
+function handleFoundReportConfirmed({ report, item }) {
+  fetchItems();
+  fetchStats();
+  fetchNotificationsSummary();
+  currentActiveTab.value = 'claimed';
+  if (toastRef.value) {
+    toastRef.value.show({
+      t: 'Item Marked as Reunited! 🎉',
+      m: `Item "${item.name}" has been physically reunited and moved to the Reunited Archive.`,
+      variant: 'success'
+    });
+  }
+}
+
+function handleFoundReportRejected({ report }) {
+  fetchItems();
+  fetchStats();
+  fetchNotificationsSummary();
+  if (toastRef.value) {
+    toastRef.value.show({
+      t: 'Report Rejected',
+      m: 'The found report was marked as rejected. The listing remains active in Lost items.',
+      variant: 'info'
+    });
+  }
+}
+
+function handleViewReunionRecord(item) {
+  if (item.description && item.description.includes('Physically Reunited: Found by')) {
+    openFoundReportsModal('owner', item);
+  } else {
+    openReviewClaimsModal(item);
+  }
+}
+
 function handleItemCreated(newItem) {
   fetchItems();
   fetchStats();
+  fetchNotificationsSummary();
   currentActiveTab.value = 'active';
   if (toastRef.value) {
     toastRef.value.show({
@@ -436,6 +582,7 @@ function handleItemCreated(newItem) {
 function handleItemClaimed(claim) {
   fetchItems();
   fetchStats();
+  fetchNotificationsSummary();
   if (toastRef.value) {
     toastRef.value.show({
       t: 'Claim Verification Submitted!',
@@ -448,6 +595,7 @@ function handleItemClaimed(claim) {
 function handleClaimApproved({ item }) {
   fetchItems();
   fetchStats();
+  fetchNotificationsSummary();
   currentActiveTab.value = 'claimed';
   if (toastRef.value) {
     toastRef.value.show({
@@ -461,6 +609,7 @@ function handleClaimApproved({ item }) {
 function handleClaimRejected({ item }) {
   fetchItems();
   fetchStats();
+  fetchNotificationsSummary();
   if (toastRef.value) {
     toastRef.value.show({
       t: 'Claim Rejected',

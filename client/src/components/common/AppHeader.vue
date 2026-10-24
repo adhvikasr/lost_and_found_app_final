@@ -53,6 +53,25 @@
           <span class="sm:hidden text-xs">Report</span>
         </button>
 
+        <!-- Found Reports Button with Badge -->
+        <button
+          v-if="currentUser"
+          type="button"
+          class="relative h-9 sm:h-11 px-2.5 sm:px-3 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface font-label-md text-xs sm:text-label-md flex items-center justify-center gap-1.5 border border-outline-variant/30 transition-colors cursor-pointer min-h-[38px] sm:min-h-[44px]"
+          title="View Found Reports and Notifications"
+          @click="$emit('open-found-reports')"
+        >
+          <span class="material-symbols-outlined text-[18px] text-tertiary">rate_review</span>
+          <span class="hidden sm:inline">Found Reports</span>
+          <span
+            v-if="pendingReportsCount > 0"
+            class="px-1.5 py-0.5 bg-error text-white text-[10px] font-extrabold rounded-full"
+            title="Pending reports on your lost items"
+          >
+            {{ pendingReportsCount }}
+          </span>
+        </button>
+
         <!-- Current Authenticated Student Identity & Logout -->
         <div v-if="currentUser" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs font-semibold text-on-surface">
           <span class="material-symbols-outlined text-[16px] text-primary">account_circle</span>
@@ -124,6 +143,23 @@
 
       <!-- Mobile User Info & Sign Out -->
       <div v-if="currentUser" class="pt-2 border-t border-outline-variant/30 flex flex-col gap-2">
+        <button
+          type="button"
+          class="h-10 px-3 rounded-lg bg-surface-container-low text-on-surface font-label-md text-xs font-semibold flex items-center justify-between"
+          @click="mobileMenuOpen = false; $emit('open-found-reports')"
+        >
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[18px] text-tertiary">rate_review</span>
+            <span>Found Reports Center</span>
+          </div>
+          <span
+            v-if="pendingReportsCount > 0"
+            class="px-2 py-0.5 bg-error text-white font-extrabold text-[10px] rounded-full"
+          >
+            {{ pendingReportsCount }} Pending
+          </span>
+        </button>
+
         <div class="flex items-center gap-2 px-1 text-xs text-on-surface font-semibold">
           <span class="material-symbols-outlined text-[18px] text-primary">account_circle</span>
           <span>{{ currentUser.fullName }} ({{ currentUser.studentId }})</span>
@@ -156,10 +192,14 @@ defineProps({
   currentUser: {
     type: Object,
     default: null
+  },
+  pendingReportsCount: {
+    type: Number,
+    default: 0
   }
 });
 
-defineEmits(['open-report', 'open-keyword-alert', 'logout']);
+defineEmits(['open-report', 'open-keyword-alert', 'logout', 'open-found-reports']);
 
 const mobileMenuOpen = ref(false);
 </script>

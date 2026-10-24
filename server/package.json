@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node test-auth-claims.js"
+    "test": "node test-auth-claims.js && node test-found-reports.js"
   },
   "keywords": [
     "campus",

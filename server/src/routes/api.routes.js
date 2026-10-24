@@ -11,7 +11,15 @@ import {
   getItemClaims,
   approveClaim,
   rejectClaim,
-  getMyClaims
+  getMyClaims,
+  submitFoundReport,
+  getItemFoundReports,
+  getOwnerFoundReports,
+  getMyFoundReports,
+  confirmFoundReport,
+  rejectFoundReport,
+  getNotifications,
+  markReadNotifications
 } from '../controllers/items.controller.js';
 
 const router = Router();
@@ -44,5 +52,21 @@ router.get('/items/:id/claims', requireAuth, getItemClaims);
 router.post('/claims/:id/approve', requireAuth, approveClaim);
 router.post('/claims/:id/reject', requireAuth, rejectClaim);
 router.get('/claims/my', requireAuth, getMyClaims);
+
+// ==========================================
+// "I Found This" Found Reports Endpoints
+// ==========================================
+router.post('/items/:id/found-reports', requireAuth, submitFoundReport);
+router.get('/items/:id/found-reports', requireAuth, getItemFoundReports);
+router.get('/found-reports/owner', requireAuth, getOwnerFoundReports);
+router.get('/found-reports/my', requireAuth, getMyFoundReports);
+router.post('/found-reports/:id/confirm', requireAuth, confirmFoundReport);
+router.post('/found-reports/:id/reject', requireAuth, rejectFoundReport);
+
+// ==========================================
+// Persistent Dashboard Notifications
+// ==========================================
+router.get('/notifications', requireAuth, getNotifications);
+router.post('/notifications/read', requireAuth, markReadNotifications);
 
 export default router;
