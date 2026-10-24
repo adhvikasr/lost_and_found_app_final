@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Campus Lost & Found - Styles
+   Campus Lost & Found - Vue 3 Styles (Preserved)
    ========================================================================== */
 
 :root {
@@ -36,6 +36,12 @@ body {
   background-color: var(--background);
   color: var(--text-main);
   line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -421,6 +427,7 @@ pre {
   color: var(--text-muted);
   font-size: 0.85rem;
   background-color: var(--surface);
+  margin-top: auto;
 }
 
 /* Responsive adjustments */

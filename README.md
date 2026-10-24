@@ -1,6 +1,6 @@
-# Campus Lost & Found (SQLite Edition)
+# Campus Lost & Found (Vue 3 + Vite + SQLite)
 
-A full-stack campus Lost & Found application with an Express backend, persistent **SQLite** database (`better-sqlite3`), and vanilla JavaScript frontend.
+A full-stack campus Lost & Found application built with **Vue 3 Single-File Components (`.vue`)**, **Vite**, **Express**, and **SQLite (`better-sqlite3`)**.
 
 ---
 
@@ -8,12 +8,20 @@ A full-stack campus Lost & Found application with an Express backend, persistent
 
 ```
 FinalApp/
-├── client/                     # Frontend client
-│   ├── css/
-│   │   └── styles.css          # Responsive styling (mobile-first)
-│   ├── js/
-│   │   └── app.js              # Client logic, health check, and item CRUD
-│   └── index.html              # Main frontend entry point
+├── client/                     # Vue 3 + Vite Frontend
+│   ├── src/
+│   │   ├── components/         # Vue Single-File Components
+│   │   │   ├── StatusSection.vue # Live frontend, server & SQLite status
+│   │   │   ├── ItemForm.vue    # Report lost/found item form
+│   │   │   └── ItemsTable.vue  # Live items table with search & filters
+│   │   ├── App.vue             # Root Vue Component
+│   │   ├── main.js             # Vue 3 application entry point
+│   │   └── style.css           # Preserved responsive styling (mobile-first)
+│   ├── public/                 # Static public assets
+│   ├── dist/                   # Production build output (served by Express)
+│   ├── index.html              # Vite HTML host container (<div id="app">)
+│   ├── vite.config.js          # Vite config with API proxy to port 3001
+│   └── package.json            # Frontend dependencies (Vue 3, Vite)
 ├── server/                     # Backend API server
 │   ├── data/                   # SQLite database storage directory
 │   │   └── campus-lost-found.db# Persistent SQLite database file
@@ -23,101 +31,78 @@ FinalApp/
 │   │   │   └── items.controller.js
 │   │   ├── db/                 # Database configuration & queries
 │   │   │   └── sqlite.js       # SQLite connection with better-sqlite3
-│   │   ├── routes/             # Express API routes
-│   │   │   └── api.routes.js   # Mounts /health and /items
-│   │   ├── app.js              # Express app setup, CORS, static serving
+│   │   ├── routes/             # Express API routes (/health, /items)
+│   │   │   └── api.routes.js
+│   │   ├── app.js              # Express app (API + serves client/dist)
 │   │   └── index.js            # Server entry point & listener
 │   ├── .env.example            # Environment variables template
-│   ├── .env                    # Local environment config
-│   └── package.json            # Backend dependencies & scripts
+│   ├── .env                    # Local environment config (PORT=3001)
+│   └── package.json            # Backend dependencies
 ├── package.json                # Root convenience scripts
 └── README.md                   # Documentation & run instructions
 ```
 
 ---
 
-## 💾 Database (SQLite with `better-sqlite3`)
+## 🚀 How to Run on macOS
 
-The application automatically creates and connects to the SQLite database file at:
+### 1. Install Dependencies (First Time Setup)
+From the project root directory (`FinalApp`):
+```bash
+npm run install:all
 ```
-server/data/campus-lost-found.db
-```
-- **Engine**: `better-sqlite3`
-- **Concurrency**: Write-Ahead Logging (`WAL` mode) enabled for high performance.
-- **Auto-Initialization**: Creates the `items` table and indexes automatically on startup if they do not exist.
-- **Safety**: Uses strictly parameterized SQL queries (`?` placeholders) to prevent SQL injection. Existing data is never deleted or truncated on restarts.
-
-### Database Schema
-```sql
-CREATE TABLE IF NOT EXISTS items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  category TEXT NOT NULL,
-  location TEXT NOT NULL,
-  status TEXT NOT NULL CHECK(status IN ('Lost', 'Found')),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_items_created_at ON items (created_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_items_category ON items (category);
-CREATE INDEX IF NOT EXISTS idx_items_status ON items (status);
-```
+*(Or install individually: `npm --prefix server install && npm --prefix client install`)*
 
 ---
 
-## 🚀 Run Commands
+### 2. Development Mode (Recommended)
 
-### 1. Install Dependencies
-```bash
-npm --prefix server install
-```
+In development, the Vite dev server runs with Hot Module Replacement (HMR) and automatically proxies all `/api/*` calls to the Express backend.
 
-### 2. Start the Backend Server
+#### Terminal 1 — Start the Backend Server:
 ```bash
-npm run dev
-# or
-npm start
+npm run dev:server
 ```
-The server will start at:
-- **Web App (Frontend)**: [http://localhost:3001](http://localhost:3001)
-- **Health Check API**: [http://localhost:3001/api/health](http://localhost:3001/api/health)
-- **Items API**: [http://localhost:3001/api/items](http://localhost:3001/api/items)
+- Backend starts at: `http://localhost:3001`
+- SQLite database initializes at: `server/data/campus-lost-found.db`
+
+#### Terminal 2 — Start the Vite Vue Frontend:
+```bash
+npm run dev:client
+```
+- Vite dev server starts at: **[http://localhost:5173](http://localhost:5173)**
+- Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 🔍 How to Verify Persistence Across Restarts
+### 3. Production Mode (Single Server)
 
-1. **Start the server**:
+You can compile the Vue 3 frontend and let Express serve both the API and the static build from a single port (`3001`):
+
+1. **Build the Vue frontend**:
+   ```bash
+   npm run build
+   ```
+2. **Start the Express server**:
    ```bash
    npm start
    ```
-2. **Add a test item** via the UI or `curl`:
-   ```bash
-   curl -X POST http://localhost:3001/api/items \
-     -H "Content-Type: application/json" \
-     -d '{"name":"Green Notebook","category":"stationery","location":"Library 3rd Floor","status":"Lost"}'
-   ```
-3. **Stop the server** (`Ctrl+C` or kill process).
-4. **Restart the server**:
-   ```bash
-   npm start
-   ```
-5. **Verify the item persists**:
-   ```bash
-   curl http://localhost:3001/api/items
-   ```
-   Or query SQLite directly:
-   ```bash
-   sqlite3 server/data/campus-lost-found.db "SELECT * FROM items WHERE name='Green Notebook';"
-   ```
-   The record will be retrieved intact from disk.
+3. **Open the application**:
+   - Web App: **[http://localhost:3001](http://localhost:3001)**
+   - API Health: **[http://localhost:3001/api/health](http://localhost:3001/api/health)**
+   - API Items: **[http://localhost:3001/api/items](http://localhost:3001/api/items)**
 
 ---
 
-## ⚙️ Environment Configuration (`server/.env`)
+## 💾 Database & API Features
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | HTTP port for Express backend | `3001` |
-| `NODE_ENV` | Environment mode (`development`/`production`) | `development` |
-| `DB_PATH` | Path to persistent SQLite database file | `./data/campus-lost-found.db` |
+- **Database Engine**: Persistent SQLite (`better-sqlite3`) with WAL mode (`server/data/campus-lost-found.db`).
+- **Data Safety**: Parameterized SQL queries only. Tables and indexes are auto-created without destroying existing data.
+- **API Endpoints**:
+  - `GET /api/health` — Returns backend health, version, SQLite connection status, and total item count.
+  - `GET /api/items` — Retrieves items with optional filters:
+    - `?search=<keyword>` (case-insensitive search across name, category, location)
+    - `?category=<category>` (e.g. `electronics`, `accessories`, `id-cards`, `keys`, `clothing`, `stationery`, `other`)
+    - `?status=Lost|Found|all`
+  - `POST /api/items` — Reports a new item (`name`, `category`, `location`, `status`).
+  - `GET /api/items/:id` — Retrieves an item by its ID.
