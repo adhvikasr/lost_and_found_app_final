@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus Lost & Found - Application Entry Point</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- Navigation Header -->
+  <header class="header">
+    <div class="header-container">
+      <div class="logo-wrapper">
+        <div class="logo-icon">🔍</div>
+        <div class="logo-text">
+          <h1>Campus Lost &amp; Found</h1>
+          <span>Smart Campus Recovery System</span>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="badge badge-success" id="frontend-badge">
+          <span class="indicator-dot"></span> Frontend Active
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container">
+    <section class="welcome-card">
+      <h2>Welcome to Campus Lost &amp; Found</h2>
+      <p>
+        The minimum frontend and backend entry points are configured.
+        Verify system connectivity below before proceeding with feature development.
+      </p>
+    </section>
+
+    <!-- System Status Section -->
+    <section class="status-section">
+      <h3 class="status-section-title">System Status Verification</h3>
+      <div class="status-grid">
+        <!-- Frontend Status Card -->
+        <div class="status-card">
+          <div class="status-card-header">
+            <span class="status-card-title">Frontend Client</span>
+            <span class="badge badge-success">
+              <span class="indicator-dot"></span> Running
+            </span>
+          </div>
+          <div class="status-card-value">HTML5 / CSS3 / JS</div>
+          <div class="status-card-meta">Client entry point initialized successfully</div>
+        </div>
+
+        <!-- Backend Status Card -->
+        <div class="status-card">
+          <div class="status-card-header">
+            <span class="status-card-title">Backend API</span>
+            <span id="server-status-badge" class="badge badge-warning">
+              <span class="indicator-dot"></span> Checking...
+            </span>
+          </div>
+          <div id="server-status-text" class="status-card-value">Connecting...</div>
+          <div id="server-latency-text" class="status-card-meta">Checking endpoint /api/health</div>
+        </div>
+
+        <!-- Database Status Card -->
+        <div class="status-card">
+          <div class="status-card-header">
+            <span class="status-card-title">Database Layer</span>
+            <span id="db-status-badge" class="badge badge-warning">
+              <span class="indicator-dot"></span> Checking...
+            </span>
+          </div>
+          <div id="db-status-text" class="status-card-value">Supabase Config</div>
+          <div class="status-card-meta">Configured via server/.env</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Operational Controls -->
+    <section class="actions-card">
+      <h3 class="status-section-title" style="margin-bottom: 0.25rem;">Entry Point Operations</h3>
+      <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+        Test communication between the frontend client and the backend Express server.
+      </p>
+      <div class="actions-buttons">
+        <button id="ping-btn" class="btn btn-primary" type="button">
+          🔄 Re-test Backend Connection
+        </button>
+        <a href="/api/health" target="_blank" class="btn btn-secondary">
+          🌐 Open Raw /api/health Endpoint
+        </a>
+      </div>
+    </section>
+
+    <!-- Raw Response View -->
+    <section class="log-card">
+      <h3>Live API Response (/api/health)</h3>
+      <pre id="raw-response">Awaiting health check response...</pre>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    Campus Lost &amp; Found &bull; Minimal Full-Stack Entry Point &bull; Express + Vanilla JS
+  </footer>
+
+  <script src="js/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "campus-lost-and-found-app",
+  "version": "1.0.0",
+  "description": "Campus Lost and Found application - full stack",
+  "scripts": {
+    "start": "npm --prefix server start",
+    "dev": "npm --prefix server run dev",
+    "server": "npm --prefix server run dev",
+    "install:server": "npm --prefix server install",
+    "open:client": "open client/index.html",
+    "open:app": "open http://localhost:3001"
+  },
+  "keywords": [
+    "campus",
+    "lost-and-found"
+  ],
+  "author": "",
+  "license": "ISC"
+}
