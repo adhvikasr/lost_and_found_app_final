@@ -1,6 +1,15 @@
-# Campus Lost & Found (Vue 3 + Vite + SQLite)
+# Campus Findr • University Lost & Found App
 
-A full-stack campus Lost & Found application built with **Vue 3 Single-File Components (`.vue`)**, **Vite**, **Express**, and **SQLite (`better-sqlite3`)**.
+A modern, responsive full-stack campus Lost & Found application built with **Vue 3 Single-File Components (`.vue`)**, **Vite**, **Express**, and **SQLite (`better-sqlite3`)**, matching the official Campus Findr Stitch design system.
+
+---
+
+## 🛠️ Stack & Architecture
+
+- **Frontend**: Vue 3 (Composition API `<script setup>`), Vite 8, Tailwind CSS, Google Material Symbols Outlined, Inter & Plus Jakarta Sans typography.
+- **Backend**: Node.js, Express (RESTful API), CORS, parameterized SQL queries.
+- **Database**: SQLite (`better-sqlite3`), WAL journal mode, automatic migration & indexing (`server/data/campus-find.db`).
+- **Responsive Design**: Built-in responsive behavior from mobile (360–390px) to tablet (768px) and desktop (1280px+). Minimum 44px touch targets.
 
 ---
 
@@ -8,101 +17,109 @@ A full-stack campus Lost & Found application built with **Vue 3 Single-File Comp
 
 ```
 FinalApp/
-├── client/                     # Vue 3 + Vite Frontend
+├── client/                                # Vue 3 Frontend
 │   ├── src/
-│   │   ├── components/         # Vue Single-File Components
-│   │   │   ├── StatusSection.vue # Live frontend, server & SQLite status
-│   │   │   ├── ItemForm.vue    # Report lost/found item form
-│   │   │   └── ItemsTable.vue  # Live items table with search & filters
-│   │   ├── App.vue             # Root Vue Component
-│   │   ├── main.js             # Vue 3 application entry point
-│   │   └── style.css           # Preserved responsive styling (mobile-first)
-│   ├── public/                 # Static public assets
-│   ├── dist/                   # Production build output (served by Express)
-│   ├── index.html              # Vite HTML host container (<div id="app">)
-│   ├── vite.config.js          # Vite config with API proxy to port 3001
-│   └── package.json            # Frontend dependencies (Vue 3, Vite)
-├── server/                     # Backend API server
-│   ├── data/                   # SQLite database storage directory
-│   │   └── campus-lost-found.db# Persistent SQLite database file
+│   │   ├── components/
+│   │   │   ├── common/                    # Shared Foundation Components
+│   │   │   │   ├── AppHeader.vue          # Fixed navigation header with live SQLite status & mobile drawer
+│   │   │   │   ├── AppFooter.vue          # Guidelines, support links & system status
+│   │   │   │   ├── BaseButton.vue         # Accessible button with variants & 44px touch targets
+│   │   │   │   ├── BaseBadge.vue          # Status pills (Found, Lost, Claimed)
+│   │   │   │   ├── BaseModal.vue          # Accessible backdrop modal with ESC key dismiss
+│   │   │   │   └── ToastNotification.vue  # Floating notification toasts
+│   │   │   ├── home/                      # Home Page Workspace Components
+│   │   │   │   ├── HeroWorkspace.vue      # Dual action launchpads ("I Lost Something" / "I Found an Item")
+│   │   │   │   ├── SearchFilterBar.vue    # Keyboard search (⌘K / /), feed tabs & quick facet dropdowns
+│   │   │   │   ├── ItemCard.vue           # High-density item card with media & action triggers
+│   │   │   │   └── ItemGrid.vue           # 1-col mobile, 2-col tablet, 3-col desktop responsive card grid
+│   │   │   └── modals/                    # Interactive Workflow Modals
+│   │   │       ├── ReportItemModal.vue    # File Lost alert or Log Found item with photo picker
+│   │   │       ├── ClaimModal.vue         # Claim Belonging with Student ID verification
+│   │   │       ├── SpottedModal.vue       # Handoff notice for spotted items
+│   │   │       ├── KeywordAlertModal.vue  # Campus keyword automated email matching
+│   │   │       └── InfoModal.vue          # Campus FAQs, Ownership Rules & Honor Code
+│   │   ├── App.vue                        # Root application orchestrator
+│   │   ├── main.js                        # Vue 3 entry point mounting on #app
+│   │   └── style.css                      # Design tokens, variables & responsive rules
+│   ├── dist/                              # Production build output
+│   ├── index.html                         # HTML template host container (<div id="app">)
+│   ├── vite.config.js                     # Vite proxying /api to port 3001
+│   └── package.json
+├── server/                                # Node.js + Express Backend
+│   ├── data/
+│   │   └── campus-find.db                 # SQLite database file
 │   ├── src/
-│   │   ├── controllers/        # Request controllers
-│   │   │   ├── health.controller.js
-│   │   │   └── items.controller.js
-│   │   ├── db/                 # Database configuration & queries
-│   │   │   └── sqlite.js       # SQLite connection with better-sqlite3
-│   │   ├── routes/             # Express API routes (/health, /items)
-│   │   │   └── api.routes.js
-│   │   ├── app.js              # Express app (API + serves client/dist)
-│   │   └── index.js            # Server entry point & listener
-│   ├── .env.example            # Environment variables template
-│   ├── .env                    # Local environment config (PORT=3001)
-│   └── package.json            # Backend dependencies
-├── package.json                # Root convenience scripts
-└── README.md                   # Documentation & run instructions
+│   │   ├── controllers/
+│   │   │   ├── health.controller.js       # Health endpoint handler
+│   │   │   └── items.controller.js        # Items CRUD & claim handlers
+│   │   ├── db/
+│   │   │   └── sqlite.js                  # better-sqlite3 connection, migration & seed
+│   │   ├── routes/
+│   │   │   └── api.routes.js              # REST endpoints (/health, /stats, /items)
+│   │   ├── app.js                         # Express server (serves API & client/dist)
+│   │   └── index.js                       # Server entry point on port 3001
+│   ├── .env.example
+│   └── package.json
+├── package.json                           # Root convenience scripts
+└── README.md
 ```
 
 ---
 
-## 🚀 How to Run on macOS
+## 🚀 Running the Application
 
-### 1. Install Dependencies (First Time Setup)
-From the project root directory (`FinalApp`):
+### 1. Install Dependencies
 ```bash
 npm run install:all
 ```
-*(Or install individually: `npm --prefix server install && npm --prefix client install`)*
 
----
-
-### 2. Development Mode (Recommended)
-
-In development, the Vite dev server runs with Hot Module Replacement (HMR) and automatically proxies all `/api/*` calls to the Express backend.
-
-#### Terminal 1 — Start the Backend Server:
+### 2. Build Frontend
 ```bash
-npm run dev:server
+npm run build
 ```
-- Backend starts at: `http://localhost:3001`
-- SQLite database initializes at: `server/data/campus-lost-found.db`
 
-#### Terminal 2 — Start the Vite Vue Frontend:
+### 3. Start Backend Server
 ```bash
+npm start
+```
+The server will start on **`http://localhost:3001`**, serving both the REST API and the production Vue frontend.
+
+### 4. Development Mode (with Hot-Module Reloading)
+In two separate terminals:
+```bash
+# Terminal 1: Backend server
+npm run dev:server
+
+# Terminal 2: Vite Vue frontend with HMR
 npm run dev:client
 ```
-- Vite dev server starts at: **[http://localhost:5173](http://localhost:5173)**
-- Open [http://localhost:5173](http://localhost:5173) in your browser.
+- Frontend dev server: `http://localhost:5173`
+- Backend API server: `http://localhost:3001`
 
 ---
 
-### 3. Production Mode (Single Server)
+## 📡 API Endpoints
 
-You can compile the Vue 3 frontend and let Express serve both the API and the static build from a single port (`3001`):
-
-1. **Build the Vue frontend**:
-   ```bash
-   npm run build
-   ```
-2. **Start the Express server**:
-   ```bash
-   npm start
-   ```
-3. **Open the application**:
-   - Web App: **[http://localhost:3001](http://localhost:3001)**
-   - API Health: **[http://localhost:3001/api/health](http://localhost:3001/api/health)**
-   - API Items: **[http://localhost:3001/api/items](http://localhost:3001/api/items)**
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/health` | Health check & SQLite database connectivity |
+| `GET` | `/api/stats` | Aggregated counts for total, found, lost, and claimed items |
+| `GET` | `/api/items` | Query items with `search`, `category`, `status`, `location` |
+| `GET` | `/api/items/:id` | Retrieve single item by ID |
+| `POST` | `/api/items` | Create a lost or found item record |
+| `POST` | `/api/items/:id/claim` | Verify ownership and transition status to `Claimed` |
 
 ---
 
-## 💾 Database & API Features
+## 📱 Responsive Support
 
-- **Database Engine**: Persistent SQLite (`better-sqlite3`) with WAL mode (`server/data/campus-lost-found.db`).
-- **Data Safety**: Parameterized SQL queries only. Tables and indexes are auto-created without destroying existing data.
-- **API Endpoints**:
-  - `GET /api/health` — Returns backend health, version, SQLite connection status, and total item count.
-  - `GET /api/items` — Retrieves items with optional filters:
-    - `?search=<keyword>` (case-insensitive search across name, category, location)
-    - `?category=<category>` (e.g. `electronics`, `accessories`, `id-cards`, `keys`, `clothing`, `stationery`, `other`)
-    - `?status=Lost|Found|all`
-  - `POST /api/items` — Reports a new item (`name`, `category`, `location`, `status`).
-  - `GET /api/items/:id` — Retrieves an item by its ID.
+- **Mobile (360px – 390px)**:
+  - Header compacts cleanly with touch hamburger menu for navigation.
+  - Dual action cards stack into 1 column with full-width action buttons.
+  - Filter tabs support smooth swipe scrolling (`overflow-x-auto no-scrollbar`).
+  - Item cards display 1 column with min 44px interactive tap targets.
+  - Modals adapt to screen height with touch-friendly form fields and action rows.
+- **Tablet (768px)**:
+  - 2-column card grid, inline quick filters, university badge visible.
+- **Desktop (1024px – 1440px+)**:
+  - Full 3-column card grid, keyboard shortcuts (`⌘K` / `/` focus), live status pills.

@@ -97,6 +97,6 @@ const dbValueText = computed(() => {
 });
 
 const dbMetaText = computed(() => {
-  return props.dbStatus.databaseFile || 'server/data/campus-lost-found.db';
+  return props.dbStatus.databaseFile || 'server/data/campus-find.db';
 });
 </script>

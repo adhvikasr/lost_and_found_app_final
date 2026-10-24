@@ -2,7 +2,7 @@
   <section class="form-card">
     <h3 class="status-section-title" style="margin-bottom: 0.25rem;">Report a Lost or Found Item</h3>
     <p style="font-size: 0.88rem; color: var(--text-muted);">
-      Submits directly to <code>POST /api/items</code> using parameterized SQL into <code>campus-lost-found.db</code>.
+      Submits directly to <code>POST /api/items</code> using parameterized SQL into <code>campus-find.db</code>.
     </p>
     <form @submit.prevent="handleSubmit">
       <div class="form-grid">
