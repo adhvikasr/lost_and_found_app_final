@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import session from 'express-session';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -15,9 +16,27 @@ const staticDirectory = fs.existsSync(clientDistDirectory) ? clientDistDirectory
 const app = express();
 
 // Global Middleware
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Server-managed session configuration for demonstration
+app.use(session({
+  name: 'campus_session',
+  secret: process.env.SESSION_SECRET || 'campus-lost-and-found-demo-secret-key-2026',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: false, // false for local HTTP demo environments
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
 
 // Serve frontend static files (serves built Vue 3 dist if available)
 app.use(express.static(staticDirectory));
@@ -37,12 +56,22 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(clientSourceDirectory, 'index.html'));
 });
 
-// Centralized error handling
+// Explicit JSON 404 handler for any unhandled /api requests (guarantees JSON output, never HTML)
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: `API endpoint not found: ${req.method} ${req.originalUrl}`
+  });
+});
+
+// Centralized error handling (always returns JSON for API requests)
 app.use((err, req, res, next) => {
   console.error('[Server Error]', err);
-  res.status(err.status || 500).json({
-    status: 'error',
-    message: err.message || 'Internal Server Error'
+  if (res.headersSent) {
+    return next(err);
+  }
+  const statusCode = err.status || err.statusCode || 500;
+  res.status(statusCode).json({
+    error: err.message || 'Internal Server Error'
   });
 });
 

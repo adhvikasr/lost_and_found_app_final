@@ -42,16 +42,6 @@
           </span>
         </div>
 
-        <!-- Quick "Keyword Alert" button (Desktop) -->
-        <button
-          type="button"
-          class="hidden lg:inline-flex items-center gap-1 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low font-label-md text-label-md transition-colors min-h-[40px]"
-          @click="$emit('open-keyword-alert')"
-        >
-          <span class="material-symbols-outlined text-[18px] text-primary">notifications_active</span>
-          <span>Alerts</span>
-        </button>
-
         <!-- Primary Action: Report Button -->
         <button
           type="button"
@@ -61,6 +51,24 @@
           <span class="material-symbols-outlined text-[18px]">add_alert</span>
           <span class="hidden sm:inline">Report Item</span>
           <span class="sm:hidden text-xs">Report</span>
+        </button>
+
+        <!-- Current Authenticated Student Identity & Logout -->
+        <div v-if="currentUser" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs font-semibold text-on-surface">
+          <span class="material-symbols-outlined text-[16px] text-primary">account_circle</span>
+          <span class="truncate max-w-[120px]">{{ currentUser.fullName }}</span>
+          <span class="text-outline">({{ currentUser.studentId }})</span>
+        </div>
+
+        <button
+          v-if="currentUser"
+          type="button"
+          class="h-9 sm:h-11 px-2.5 sm:px-3 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-error font-label-md text-xs sm:text-label-md flex items-center justify-center gap-1 border border-outline-variant/30 transition-colors cursor-pointer"
+          title="Sign Out of Campus Findr"
+          @click="$emit('logout')"
+        >
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+          <span class="hidden sm:inline">Sign Out</span>
         </button>
 
         <!-- Mobile Drawer Toggle -->
@@ -114,14 +122,21 @@
         </button>
       </div>
 
-      <button
-        type="button"
-        class="h-10 px-3 rounded-lg bg-surface-container-low text-on-surface-variant hover:text-on-surface font-label-md text-label-md flex items-center justify-center gap-1.5 mt-1"
-        @click="mobileMenuOpen = false; $emit('open-keyword-alert')"
-      >
-        <span class="material-symbols-outlined text-[18px] text-primary">notifications_active</span>
-        <span>Set Keyword Alerts</span>
-      </button>
+      <!-- Mobile User Info & Sign Out -->
+      <div v-if="currentUser" class="pt-2 border-t border-outline-variant/30 flex flex-col gap-2">
+        <div class="flex items-center gap-2 px-1 text-xs text-on-surface font-semibold">
+          <span class="material-symbols-outlined text-[18px] text-primary">account_circle</span>
+          <span>{{ currentUser.fullName }} ({{ currentUser.studentId }})</span>
+        </div>
+        <button
+          type="button"
+          class="h-10 px-3 rounded-lg bg-error-container/20 text-error font-label-md text-xs font-semibold flex items-center justify-center gap-1.5"
+          @click="mobileMenuOpen = false; $emit('logout')"
+        >
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+          <span>Sign Out</span>
+        </button>
+      </div>
     </div>
   </header>
 </template>
@@ -137,10 +152,14 @@ defineProps({
   totalItems: {
     type: Number,
     default: 0
+  },
+  currentUser: {
+    type: Object,
+    default: null
   }
 });
 
-defineEmits(['open-report', 'open-keyword-alert']);
+defineEmits(['open-report', 'open-keyword-alert', 'logout']);
 
 const mobileMenuOpen = ref(false);
 </script>

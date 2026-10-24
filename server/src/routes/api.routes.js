@@ -1,19 +1,48 @@
 import { Router } from 'express';
 import { getHealth } from '../controllers/health.controller.js';
-import { getItems, getItem, createItem, claimItem, getStats } from '../controllers/items.controller.js';
+import { login, getMe, logout } from '../controllers/auth.controller.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
+import {
+  getItems,
+  getItem,
+  createItem,
+  claimItem,
+  getStats,
+  getItemClaims,
+  approveClaim,
+  rejectClaim,
+  getMyClaims
+} from '../controllers/items.controller.js';
 
 const router = Router();
 
-// Health check endpoint
+// ==========================================
+// System & Health Endpoints
+// ==========================================
 router.get('/health', getHealth);
-
-// Item statistics (counts for found, lost, claimed)
 router.get('/stats', getStats);
 
-// Lost & Found items CRUD
+// ==========================================
+// Authentication Endpoints (Demo Accounts)
+// ==========================================
+router.post('/auth/login', login);
+router.get('/auth/me', getMe);
+router.post('/auth/logout', logout);
+
+// ==========================================
+// Items Endpoints
+// ==========================================
 router.get('/items', getItems);
-router.post('/items', createItem);
 router.get('/items/:id', getItem);
-router.post('/items/:id/claim', claimItem);
+router.post('/items', requireAuth, createItem);
+router.post('/items/:id/claim', requireAuth, claimItem);
+
+// ==========================================
+// Owner Claim Review Endpoints
+// ==========================================
+router.get('/items/:id/claims', requireAuth, getItemClaims);
+router.post('/claims/:id/approve', requireAuth, approveClaim);
+router.post('/claims/:id/reject', requireAuth, rejectClaim);
+router.get('/claims/my', requireAuth, getMyClaims);
 
 export default router;

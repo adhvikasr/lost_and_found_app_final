@@ -121,6 +121,10 @@ const props = defineProps({
   item: {
     type: Object,
     default: null
+  },
+  currentUser: {
+    type: Object,
+    default: null
   }
 });
 
@@ -137,8 +141,8 @@ watch(
   (val) => {
     if (val) {
       errorMessage.value = '';
-      studentId.value = '';
-      claimerName.value = '';
+      studentId.value = props.currentUser?.studentId || '';
+      claimerName.value = props.currentUser?.fullName || '';
       verificationDetail.value = '';
     }
   }
@@ -162,6 +166,7 @@ async function handleSubmit() {
     const res = await fetch(`/api/items/${props.item.id}/claim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         student_id: studentId.value.trim(),
         claimer_name: claimerName.value.trim(),

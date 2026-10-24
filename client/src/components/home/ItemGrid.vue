@@ -67,8 +67,10 @@
           v-for="item in items"
           :key="item.id"
           :item="item"
+          :current-user="currentUser"
           @claim="$emit('claim', $event)"
           @spotted="$emit('spotted', $event)"
+          @review-claims="$emit('review-claims', $event)"
         />
       </div>
 
@@ -122,8 +124,12 @@ defineProps({
   sortBy: {
     type: String,
     default: 'recent'
+  },
+  currentUser: {
+    type: Object,
+    default: null
   }
 });
 
-defineEmits(['claim', 'spotted', 'open-report', 'reset-filters', 'update:sortBy']);
+defineEmits(['claim', 'spotted', 'open-report', 'reset-filters', 'update:sortBy', 'review-claims']);
 </script>

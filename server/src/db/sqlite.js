@@ -55,13 +55,61 @@ try {
         reporter_name TEXT,
         contact TEXT,
         desk_location TEXT,
+        owner_username TEXT,
+        owner_student_id TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE INDEX IF NOT EXISTS idx_items_created_at ON items (created_at DESC, id DESC);
       CREATE INDEX IF NOT EXISTS idx_items_category ON items (category);
       CREATE INDEX IF NOT EXISTS idx_items_status ON items (status);
+      CREATE INDEX IF NOT EXISTS idx_items_owner ON items (owner_student_id);
+
+      CREATE TABLE IF NOT EXISTS claims (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER NOT NULL,
+        claimant_username TEXT NOT NULL,
+        claimant_student_id TEXT NOT NULL,
+        claimant_name TEXT NOT NULL,
+        verification_detail TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('Pending', 'Approved', 'Rejected')) DEFAULT 'Pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        decided_at DATETIME,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_claims_item_id ON claims (item_id);
+      CREATE INDEX IF NOT EXISTS idx_claims_claimant ON claims (claimant_student_id);
+      CREATE INDEX IF NOT EXISTS idx_claims_status ON claims (status);
+
+      CREATE TABLE IF NOT EXISTS accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        student_id TEXT UNIQUE NOT NULL,
+        full_name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_accounts_username ON accounts (username);
+      CREATE INDEX IF NOT EXISTS idx_accounts_student_id ON accounts (student_id);
     `);
+
+    // Initialize the preset demo accounts in SQLite
+    const insertAccount = dbInstance.prepare(`
+      INSERT OR IGNORE INTO accounts (username, password, student_id, full_name)
+      VALUES (?, ?, ?, ?)
+    `);
+    const initialAccounts = [
+      ['student1', 'demo123', 'STU001', 'Student One'],
+      ['student2', 'demo123', 'STU002', 'Student Two'],
+      ['student3', 'demo123', 'STU003', 'Student Three'],
+      ['student4', 'demo123', 'STU004', 'Student Four'],
+      ['student5', 'demo123', 'STU005', 'Student Five']
+    ];
+    for (const [u, p, s, f] of initialAccounts) {
+      insertAccount.run(u, p, s, f);
+    }
   } else {
     // Migration: ensure columns and check constraint support
     const tableInfo = dbInstance.pragma('table_info(items)');
@@ -82,6 +130,60 @@ try {
     if (!colNames.includes('desk_location')) {
       dbInstance.exec('ALTER TABLE items ADD COLUMN desk_location TEXT;');
     }
+    if (!colNames.includes('owner_username')) {
+      dbInstance.exec('ALTER TABLE items ADD COLUMN owner_username TEXT;');
+    }
+    if (!colNames.includes('owner_student_id')) {
+      dbInstance.exec('ALTER TABLE items ADD COLUMN owner_student_id TEXT;');
+    }
+
+    // Ensure claims table exists
+    dbInstance.exec(`
+      CREATE TABLE IF NOT EXISTS claims (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER NOT NULL,
+        claimant_username TEXT NOT NULL,
+        claimant_student_id TEXT NOT NULL,
+        claimant_name TEXT NOT NULL,
+        verification_detail TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('Pending', 'Approved', 'Rejected')) DEFAULT 'Pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        decided_at DATETIME,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_claims_item_id ON claims (item_id);
+      CREATE INDEX IF NOT EXISTS idx_claims_claimant ON claims (claimant_student_id);
+      CREATE INDEX IF NOT EXISTS idx_claims_status ON claims (status);
+
+      CREATE TABLE IF NOT EXISTS accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        student_id TEXT UNIQUE NOT NULL,
+        full_name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_accounts_username ON accounts (username);
+      CREATE INDEX IF NOT EXISTS idx_accounts_student_id ON accounts (student_id);
+    `);
+
+    // Initialize the preset demo accounts in SQLite
+    const insertAccount = dbInstance.prepare(`
+      INSERT OR IGNORE INTO accounts (username, password, student_id, full_name)
+      VALUES (?, ?, ?, ?)
+    `);
+    const initialAccounts = [
+      ['student1', 'demo123', 'STU001', 'Student One'],
+      ['student2', 'demo123', 'STU002', 'Student Two'],
+      ['student3', 'demo123', 'STU003', 'Student Three'],
+      ['student4', 'demo123', 'STU004', 'Student Four'],
+      ['student5', 'demo123', 'STU005', 'Student Five']
+    ];
+    for (const [u, p, s, f] of initialAccounts) {
+      insertAccount.run(u, p, s, f);
+    }
 
     const tableSql = dbInstance.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='items'").get()?.sql || '';
     if (!tableSql.includes('Claimed')) {
@@ -98,15 +200,18 @@ try {
           reporter_name TEXT,
           contact TEXT,
           desk_location TEXT,
+          owner_username TEXT,
+          owner_student_id TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
-        INSERT INTO items_new (id, name, category, location, status, description, image_url, reporter_name, contact, desk_location, created_at)
-        SELECT id, name, category, location, status, description, image_url, reporter_name, contact, desk_location, created_at FROM items;
+        INSERT INTO items_new (id, name, category, location, status, description, image_url, reporter_name, contact, desk_location, owner_username, owner_student_id, created_at)
+        SELECT id, name, category, location, status, description, image_url, reporter_name, contact, desk_location, owner_username, owner_student_id, created_at FROM items;
         DROP TABLE items;
         ALTER TABLE items_new RENAME TO items;
         CREATE INDEX IF NOT EXISTS idx_items_created_at ON items (created_at DESC, id DESC);
         CREATE INDEX IF NOT EXISTS idx_items_category ON items (category);
         CREATE INDEX IF NOT EXISTS idx_items_status ON items (status);
+        CREATE INDEX IF NOT EXISTS idx_items_owner ON items (owner_student_id);
         PRAGMA foreign_keys = ON;
       `);
     }
@@ -261,9 +366,28 @@ export const getItemStats = () => {
 /**
  * Retrieve items with optional search, category, status, and location filters.
  * Strictly uses parameterized SQL queries.
+ * Returns owner details and pending claims count for each item.
  */
 export const getAllItems = ({ search, category, status, location } = {}) => {
-  let query = 'SELECT id, name, category, location, status, description, image_url, reporter_name, contact, desk_location, created_at FROM items WHERE 1=1';
+  let query = `
+    SELECT 
+      items.id, 
+      items.name, 
+      items.category, 
+      items.location, 
+      items.status, 
+      items.description, 
+      items.image_url, 
+      items.reporter_name, 
+      items.contact, 
+      items.desk_location, 
+      items.owner_username, 
+      items.owner_student_id, 
+      items.created_at,
+      (SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id AND claims.status = 'Pending') as pending_claims_count
+    FROM items 
+    WHERE 1=1
+  `;
   const params = [];
 
   if (category && category !== 'all') {
@@ -296,20 +420,62 @@ export const getAllItems = ({ search, category, status, location } = {}) => {
 };
 
 /**
- * Fetch a single item by its ID.
+ * Fetch a single item by its ID with owner details and pending claims count.
  */
 export const getItemById = (id) => {
-  const stmt = dbInstance.prepare('SELECT id, name, category, location, status, description, image_url, reporter_name, contact, desk_location, created_at FROM items WHERE id = ?');
+  const stmt = dbInstance.prepare(`
+    SELECT 
+      items.id, 
+      items.name, 
+      items.category, 
+      items.location, 
+      items.status, 
+      items.description, 
+      items.image_url, 
+      items.reporter_name, 
+      items.contact, 
+      items.desk_location, 
+      items.owner_username, 
+      items.owner_student_id, 
+      items.created_at,
+      (SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id AND claims.status = 'Pending') as pending_claims_count
+    FROM items 
+    WHERE id = ?
+  `);
   return stmt.get(id);
 };
 
 /**
- * Insert a new item using a parameterized SQL statement.
+ * Insert a new item associated with its creator using a parameterized SQL statement.
  */
-export const createItemRecord = ({ name, category, location, status, description, image_url, reporter_name, contact, desk_location }) => {
+export const createItemRecord = ({
+  name,
+  category,
+  location,
+  status,
+  description,
+  image_url,
+  reporter_name,
+  contact,
+  desk_location,
+  owner_username,
+  owner_student_id
+}) => {
   const stmt = dbInstance.prepare(`
-    INSERT INTO items (name, category, location, status, description, image_url, reporter_name, contact, desk_location)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO items (
+      name, 
+      category, 
+      location, 
+      status, 
+      description, 
+      image_url, 
+      reporter_name, 
+      contact, 
+      desk_location,
+      owner_username,
+      owner_student_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     name.trim(),
@@ -320,28 +486,205 @@ export const createItemRecord = ({ name, category, location, status, description
     image_url ? image_url.trim() : null,
     reporter_name ? reporter_name.trim() : null,
     contact ? contact.trim() : null,
-    desk_location ? desk_location.trim() : null
+    desk_location ? desk_location.trim() : null,
+    owner_username ? owner_username.trim() : null,
+    owner_student_id ? owner_student_id.trim() : null
   );
   return getItemById(result.lastInsertRowid);
 };
 
+// ==========================================
+// Claims Management Database Operations
+// ==========================================
+
 /**
- * Claim an item or update its status.
+ * Create a new claim with initial 'Pending' status.
  */
-export const claimItemRecord = (id, { student_id, verification_detail, claimer_name }) => {
-  const current = getItemById(id);
-  if (!current) return null;
-
-  const claimNote = `[Claimed: Student ID ${student_id}${verification_detail ? ` - Note: ${verification_detail}` : ''}]`;
-  const newDesc = current.description ? `${current.description} ${claimNote}` : claimNote;
-
+export const createClaimRecord = ({
+  itemId,
+  claimantUsername,
+  claimantStudentId,
+  claimantName,
+  verificationDetail
+}) => {
   const stmt = dbInstance.prepare(`
-    UPDATE items
-    SET status = 'Claimed',
-        reporter_name = COALESCE(?, reporter_name),
-        description = ?
-    WHERE id = ?
+    INSERT INTO claims (
+      item_id, 
+      claimant_username, 
+      claimant_student_id, 
+      claimant_name, 
+      verification_detail, 
+      status
+    )
+    VALUES (?, ?, ?, ?, ?, 'Pending')
   `);
-  stmt.run(claimer_name || `Student #${student_id}`, newDesc, id);
-  return getItemById(id);
+  const result = stmt.run(
+    itemId,
+    claimantUsername.trim(),
+    claimantStudentId.trim().toUpperCase(),
+    claimantName.trim(),
+    verificationDetail.trim()
+  );
+  return getClaimById(result.lastInsertRowid);
+};
+
+/**
+ * Retrieve a claim by its ID.
+ */
+export const getClaimById = (id) => {
+  const stmt = dbInstance.prepare('SELECT * FROM claims WHERE id = ?');
+  return stmt.get(id);
+};
+
+/**
+ * Retrieve all claims for a specific item (for owner review).
+ */
+export const getClaimsByItemId = (itemId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT * FROM claims 
+    WHERE item_id = ? 
+    ORDER BY created_at DESC, id DESC
+  `);
+  return stmt.all(itemId);
+};
+
+/**
+ * Check if a claimant already has a pending claim on an item.
+ */
+export const getPendingClaim = (itemId, studentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT * FROM claims 
+    WHERE item_id = ? AND UPPER(claimant_student_id) = UPPER(?) AND status = 'Pending'
+  `);
+  return stmt.get(itemId, studentId.trim());
+};
+
+/**
+ * Approve a claim atomically using SQLite transaction.
+ * 1. Sets claim status to 'Approved' with decided_at timestamp.
+ * 2. Updates item status to 'Claimed' and records reunion note.
+ * 3. Automatically rejects any other pending claims for this item.
+ */
+export const approveClaimTransaction = (claimId, deciderStudentId) => {
+  const tx = dbInstance.transaction(() => {
+    const claim = dbInstance.prepare('SELECT * FROM claims WHERE id = ?').get(claimId);
+    if (!claim) {
+      const err = new Error('Claim not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (claim.status !== 'Pending') {
+      const err = new Error(`This claim has already been decided (${claim.status}).`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const item = dbInstance.prepare('SELECT * FROM items WHERE id = ?').get(claim.item_id);
+    if (!item) {
+      const err = new Error('Associated item not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (!item.owner_student_id || item.owner_student_id.toUpperCase() !== deciderStudentId.toUpperCase()) {
+      const err = new Error('Forbidden: Only the listing owner can approve claims for this item.');
+      err.statusCode = 403;
+      throw err;
+    }
+    if (item.status !== 'Found') {
+      const err = new Error(`Item is no longer available to be claimed (current status: ${item.status}).`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 1. Approve this claim
+    dbInstance.prepare(`
+      UPDATE claims 
+      SET status = 'Approved', decided_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(claim.id);
+
+    // 2. Set item status to 'Claimed'
+    const claimNote = `[Reunited with ${claim.claimant_name} (${claim.claimant_student_id})]`;
+    const updatedDesc = item.description ? `${item.description} ${claimNote}` : claimNote;
+    dbInstance.prepare(`
+      UPDATE items 
+      SET status = 'Claimed', description = ? 
+      WHERE id = ?
+    `).run(updatedDesc, item.id);
+
+    // 3. Atomically reject any other pending claims on this item
+    dbInstance.prepare(`
+      UPDATE claims 
+      SET status = 'Rejected', decided_at = CURRENT_TIMESTAMP 
+      WHERE item_id = ? AND id != ? AND status = 'Pending'
+    `).run(item.id, claim.id);
+
+    return {
+      claim: dbInstance.prepare('SELECT * FROM claims WHERE id = ?').get(claimId),
+      item: getItemById(item.id)
+    };
+  });
+
+  return tx();
+};
+
+/**
+ * Reject a claim for an item.
+ * Item remains in Found status.
+ */
+export const rejectClaimTransaction = (claimId, deciderStudentId) => {
+  const tx = dbInstance.transaction(() => {
+    const claim = dbInstance.prepare('SELECT * FROM claims WHERE id = ?').get(claimId);
+    if (!claim) {
+      const err = new Error('Claim not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (claim.status !== 'Pending') {
+      const err = new Error(`This claim has already been decided (${claim.status}).`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const item = dbInstance.prepare('SELECT * FROM items WHERE id = ?').get(claim.item_id);
+    if (!item) {
+      const err = new Error('Associated item not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (!item.owner_student_id || item.owner_student_id.toUpperCase() !== deciderStudentId.toUpperCase()) {
+      const err = new Error('Forbidden: Only the listing owner can reject claims for this item.');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    dbInstance.prepare(`
+      UPDATE claims 
+      SET status = 'Rejected', decided_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(claim.id);
+
+    return dbInstance.prepare('SELECT * FROM claims WHERE id = ?').get(claimId);
+  });
+
+  return tx();
+};
+
+/**
+ * Retrieve claims submitted by a student.
+ */
+export const getClaimsByClaimant = (studentId) => {
+  const stmt = dbInstance.prepare(`
+    SELECT 
+      claims.*, 
+      items.name as item_name, 
+      items.category as item_category, 
+      items.location as item_location,
+      items.status as item_status
+    FROM claims 
+    JOIN items ON claims.item_id = items.id 
+    WHERE UPPER(claims.claimant_student_id) = UPPER(?) 
+    ORDER BY claims.created_at DESC
+  `);
+  return stmt.all(studentId);
 };

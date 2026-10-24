@@ -33,58 +33,40 @@
 
       <!-- Controls Row: Tabs & Facet Dropdowns -->
       <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4 pt-1">
-        <!-- Status View Tabs Container with Horizontal Scroll on Mobile -->
+        <!-- Status View Tabs Container: Two Categories (All Items & Reunited List) -->
         <div class="w-full lg:w-auto overflow-x-auto no-scrollbar py-0.5">
           <div class="inline-flex p-1 bg-surface-container-low rounded-xl min-w-max">
-            <!-- Recently Found Tab -->
+            <!-- All Items (Not Reunited) Tab -->
             <button
               type="button"
               :class="[
-                'px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md transition-all flex items-center gap-1.5 whitespace-nowrap min-h-[38px]',
-                activeTab === 'found'
+                'px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md transition-all flex items-center gap-1.5 whitespace-nowrap min-h-[38px] cursor-pointer',
+                activeTab === 'active'
                   ? 'bg-surface-container-lowest text-primary font-bold shadow-sm'
                   : 'text-on-surface-variant hover:text-on-surface'
               ]"
-              @click="selectTab('found')"
+              @click="selectTab('active')"
             >
-              <span class="w-2 h-2 rounded-full bg-tertiary"></span>
-              <span>Recently Found</span>
+              <span class="w-2 h-2 rounded-full bg-primary"></span>
+              <span>All Items</span>
               <span class="bg-surface-container px-1.5 py-0.5 rounded text-on-surface font-semibold text-[11px]">
-                {{ stats.found || 0 }}
+                {{ (stats.found || 0) + (stats.lost || 0) }}
               </span>
             </button>
 
-            <!-- Reported Lost Tab -->
+            <!-- Reunited List Tab -->
             <button
               type="button"
               :class="[
-                'px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md transition-all flex items-center gap-1.5 whitespace-nowrap min-h-[38px]',
-                activeTab === 'lost'
-                  ? 'bg-surface-container-lowest text-primary font-bold shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              ]"
-              @click="selectTab('lost')"
-            >
-              <span class="w-2 h-2 rounded-full bg-secondary"></span>
-              <span>Reported Lost</span>
-              <span class="bg-surface-container px-1.5 py-0.5 rounded text-on-surface font-semibold text-[11px]">
-                {{ stats.lost || 0 }}
-              </span>
-            </button>
-
-            <!-- Reunited Archive Tab -->
-            <button
-              type="button"
-              :class="[
-                'px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md transition-all flex items-center gap-1.5 whitespace-nowrap min-h-[38px]',
+                'px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md transition-all flex items-center gap-1.5 whitespace-nowrap min-h-[38px] cursor-pointer',
                 activeTab === 'claimed'
                   ? 'bg-surface-container-lowest text-primary font-bold shadow-sm'
                   : 'text-on-surface-variant hover:text-on-surface'
               ]"
               @click="selectTab('claimed')"
             >
-              <span class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></span>
-              <span>Reunited Archive</span>
+              <span class="w-2 h-2 rounded-full bg-tertiary"></span>
+              <span>Reunited List</span>
               <span class="bg-surface-container px-1.5 py-0.5 rounded text-on-surface font-semibold text-[11px]">
                 {{ stats.claimed || 0 }}
               </span>
@@ -105,7 +87,7 @@
             >
           </div>
 
-          <!-- Status Select -->
+          <!-- Status Select (Lost / Found filter) -->
           <div class="relative w-full sm:w-auto">
             <select
               :value="modelValue.status"
@@ -115,7 +97,6 @@
               <option value="all">All Statuses</option>
               <option value="lost">Lost</option>
               <option value="found">Found</option>
-              <option value="claimed">Claimed</option>
             </select>
             <span class="material-symbols-outlined pointer-events-none absolute right-2 top-2.5 text-[18px] text-outline">
               arrow_drop_down
@@ -188,7 +169,7 @@ const props = defineProps({
   },
   activeTab: {
     type: String,
-    default: 'found'
+    default: 'active'
   },
   stats: {
     type: Object,

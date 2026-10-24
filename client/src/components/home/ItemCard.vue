@@ -8,30 +8,42 @@
     <div class="flex flex-col gap-3">
       <!-- Status Badge & Relative Time Row -->
       <div class="flex items-start justify-between gap-2">
-        <!-- Status Pill -->
-        <span
-          v-if="item.status === 'Found'"
-          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-label-sm text-label-sm font-bold border border-tertiary/20"
-        >
-          <span class="material-symbols-outlined text-[14px]">check_circle</span>
-          <span>Found</span>
-        </span>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <!-- Status Pill -->
+          <span
+            v-if="item.status === 'Found'"
+            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-label-sm text-label-sm font-bold border border-tertiary/20"
+          >
+            <span class="material-symbols-outlined text-[14px]">check_circle</span>
+            <span>Found</span>
+          </span>
 
-        <span
-          v-else-if="item.status === 'Lost'"
-          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm font-bold border border-secondary-fixed-dim/40"
-        >
-          <span class="material-symbols-outlined text-[14px]">warning</span>
-          <span>Lost</span>
-        </span>
+          <span
+            v-else-if="item.status === 'Lost'"
+            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm font-bold border border-secondary-fixed-dim/40"
+          >
+            <span class="material-symbols-outlined text-[14px]">warning</span>
+            <span>Lost</span>
+          </span>
 
-        <span
-          v-else
-          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-label-sm font-bold border border-primary-fixed-dim/40"
-        >
-          <span class="material-symbols-outlined text-[14px]">task_alt</span>
-          <span>Claimed</span>
-        </span>
+          <span
+            v-else
+            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-label-sm font-bold border border-primary-fixed-dim/40"
+          >
+            <span class="material-symbols-outlined text-[14px]">task_alt</span>
+            <span>Claimed</span>
+          </span>
+
+          <!-- Owner Indicator Badge -->
+          <span
+            v-if="isOwner"
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary font-label-sm text-[11px] font-semibold border border-primary/20"
+            title="You created this listing"
+          >
+            <span class="material-symbols-outlined text-[13px]">person</span>
+            <span>Your Listing</span>
+          </span>
+        </div>
 
         <!-- Relative Time -->
         <span class="font-body-sm text-xs text-outline flex items-center gap-1 flex-shrink-0">
@@ -111,48 +123,95 @@
 
     <!-- Action Row -->
     <div class="pt-1 flex items-center justify-between gap-2 border-t border-outline-variant/20 mt-1">
-      <button
-        v-if="item.status === 'Found'"
-        type="button"
-        class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px]"
-        @click="$emit('claim', item)"
-      >
-        <span class="material-symbols-outlined text-[18px]">verified</span>
-        <span>Claim Belonging</span>
-      </button>
+      <!-- Found status actions -->
+      <template v-if="item.status === 'Found'">
+        <!-- Listing Owner View: Review Claims -->
+        <button
+          v-if="isOwner"
+          type="button"
+          class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px] cursor-pointer"
+          @click="$emit('review-claims', item)"
+        >
+          <span class="material-symbols-outlined text-[18px]">rate_review</span>
+          <span>Review Claims</span>
+          <span
+            v-if="item.pending_claims_count > 0"
+            class="ml-1 px-1.5 py-0.5 bg-white text-primary text-[10px] font-extrabold rounded-full"
+          >
+            {{ item.pending_claims_count }}
+          </span>
+        </button>
 
+        <!-- Other Student View: Claim Belonging -->
+        <button
+          v-else
+          type="button"
+          class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px] cursor-pointer"
+          @click="$emit('claim', item)"
+        >
+          <span class="material-symbols-outlined text-[18px]">verified</span>
+          <span>Claim Belonging</span>
+        </button>
+      </template>
+
+      <!-- Lost status actions -->
       <button
         v-else-if="item.status === 'Lost'"
         type="button"
-        class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-tertiary hover:bg-tertiary-container text-on-tertiary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px]"
+        class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-tertiary hover:bg-tertiary-container text-on-tertiary font-label-md text-xs sm:text-label-md transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px] cursor-pointer"
         @click="$emit('spotted', item)"
       >
         <span class="material-symbols-outlined text-[18px]">thumb_up</span>
         <span>I Spotted / Found This</span>
       </button>
 
+      <!-- Claimed (Reunited Archive) status actions -->
       <div
         v-else
-        class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-tertiary/10 text-tertiary font-label-md text-xs sm:text-label-md flex items-center justify-center gap-1.5 font-semibold"
+        class="flex-1 flex items-center gap-2"
       >
-        <span class="material-symbols-outlined text-[18px]">verified</span>
-        <span>Reunited with Owner</span>
+        <div class="flex-1 h-10 sm:h-11 px-3 rounded-lg bg-tertiary/10 text-tertiary font-label-md text-xs sm:text-label-md flex items-center justify-center gap-1.5 font-semibold">
+          <span class="material-symbols-outlined text-[18px]">verified</span>
+          <span>Reunited with Owner</span>
+        </div>
+        <button
+          v-if="isOwner"
+          type="button"
+          class="h-10 sm:h-11 px-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-xs flex items-center justify-center gap-1 border border-outline-variant/30 cursor-pointer"
+          title="View approved claim record"
+          @click="$emit('review-claims', item)"
+        >
+          <span class="material-symbols-outlined text-[16px]">history</span>
+          <span>Record</span>
+        </button>
       </div>
     </div>
   </article>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
   item: {
     type: Object,
     required: true
+  },
+  currentUser: {
+    type: Object,
+    default: null
   }
 });
 
-defineEmits(['claim', 'spotted']);
+const emit = defineEmits(['claim', 'spotted', 'review-claims']);
+
+const isOwner = computed(() => {
+  return (
+    props.currentUser &&
+    props.item.owner_student_id &&
+    props.item.owner_student_id.toUpperCase() === props.currentUser.studentId.toUpperCase()
+  );
+});
 
 const imgError = ref(false);
 

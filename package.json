@@ -9,6 +9,7 @@
     "dev": "npm --prefix client run dev",
     "build": "npm --prefix client run build",
     "build:client": "npm --prefix client run build",
+    "test": "npm --prefix server test",
     "install:all": "npm --prefix server install && npm --prefix client install",
     "open:app": "open http://localhost:3001",
     "open:dev": "open http://localhost:5173"

@@ -1,11 +1,33 @@
 <template>
-  <div class="min-h-screen flex flex-col bg-background font-body-md text-body-md text-on-surface antialiased selection:bg-primary-fixed selection:text-on-primary-fixed-variant">
+  <!-- Authentication Verification Loading State -->
+  <div v-if="authChecking" class="min-h-screen flex items-center justify-center bg-surface font-body-md text-on-surface">
+    <div class="flex flex-col items-center gap-3">
+      <svg class="animate-spin h-9 w-9 text-primary" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"></path>
+      </svg>
+      <span class="font-label-md text-sm text-outline">Verifying campus session...</span>
+    </div>
+  </div>
+
+  <!-- Unauthenticated State: Stitch Login View ONLY (strict requirement) -->
+  <LoginView
+    v-else-if="!currentUser"
+    @login-success="handleLoginSuccess"
+  />
+
+  <!-- Authenticated State: Campus Lost & Found Dashboard -->
+  <div
+    v-else
+    class="min-h-screen flex flex-col bg-background font-body-md text-body-md text-on-surface antialiased selection:bg-primary-fixed selection:text-on-primary-fixed-variant"
+  >
     <!-- Fixed Header -->
     <AppHeader
       :is-online="serverStatus.online"
       :total-items="stats.total || items.length"
+      :current-user="currentUser"
       @open-report="openReportModal"
-      @open-keyword-alert="isKeywordModalOpen = true"
+      @logout="handleLogout"
     />
 
     <!-- Main Content Container with Top Padding for Fixed Header -->
@@ -52,11 +74,13 @@
       <ItemGrid
         :items="filteredItems"
         :is-loading="itemsLoading"
+        :current-user="currentUser"
         v-model:sort-by="sortBy"
         @claim="openClaimModal"
         @spotted="openSpottedModal"
         @open-report="openReportModal"
         @reset-filters="resetFilters"
+        @review-claims="openReviewClaimsModal"
       />
     </div>
 
@@ -76,8 +100,17 @@
     <ClaimModal
       :is-open="isClaimModalOpen"
       :item="selectedItemForClaim"
+      :current-user="currentUser"
       @close="isClaimModalOpen = false"
       @claimed="handleItemClaimed"
+    />
+
+    <ReviewClaimsModal
+      :is-open="isReviewClaimsModalOpen"
+      :item="selectedItemForReviewClaims"
+      @close="isReviewClaimsModalOpen = false"
+      @claim-approved="handleClaimApproved"
+      @claim-rejected="handleClaimRejected"
     />
 
     <SpottedModal
@@ -105,7 +138,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
+import LoginView from './components/LoginView.vue';
 import AppHeader from './components/common/AppHeader.vue';
 import AppFooter from './components/common/AppFooter.vue';
 import HeroWorkspace from './components/home/HeroWorkspace.vue';
@@ -113,10 +147,15 @@ import SearchFilterBar from './components/home/SearchFilterBar.vue';
 import ItemGrid from './components/home/ItemGrid.vue';
 import ReportItemModal from './components/modals/ReportItemModal.vue';
 import ClaimModal from './components/modals/ClaimModal.vue';
+import ReviewClaimsModal from './components/modals/ReviewClaimsModal.vue';
 import SpottedModal from './components/modals/SpottedModal.vue';
 import KeywordAlertModal from './components/modals/KeywordAlertModal.vue';
 import InfoModal from './components/modals/InfoModal.vue';
 import ToastNotification from './components/common/ToastNotification.vue';
+
+// Authentication state
+const currentUser = ref(null);
+const authChecking = ref(true);
 
 // Server health state
 const serverStatus = reactive({
@@ -139,8 +178,8 @@ const itemsLoading = ref(false);
 const sortBy = ref('recent');
 const showAdvisory = ref(false);
 
-// Active Tab ('found' | 'lost' | 'claimed')
-const currentActiveTab = ref('found');
+// Active Category Tab ('active' = All Items not reunited | 'claimed' = Reunited List)
+const currentActiveTab = ref('active');
 
 // Filters
 const filters = reactive({
@@ -156,9 +195,10 @@ const isReportModalOpen = ref(false);
 const reportModalType = ref('lost');
 const isClaimModalOpen = ref(false);
 const selectedItemForClaim = ref(null);
+const isReviewClaimsModalOpen = ref(false);
+const selectedItemForReviewClaims = ref(null);
 const isSpottedModalOpen = ref(false);
 const selectedItemForSpotted = ref(null);
-const isKeywordModalOpen = ref(false);
 const isInfoModalOpen = ref(false);
 const infoModalType = ref('faq');
 
@@ -169,13 +209,20 @@ const toastRef = ref(null);
 const filteredItems = computed(() => {
   let list = [...items.value];
 
-  // Tab filter: if tab is explicitly selected, prioritize tab status
-  if (currentActiveTab.value === 'found') {
-    list = list.filter(i => (i.status || '').toLowerCase() === 'found');
-  } else if (currentActiveTab.value === 'lost') {
-    list = list.filter(i => (i.status || '').toLowerCase() === 'lost');
-  } else if (currentActiveTab.value === 'claimed') {
+  // Two category tabs:
+  // 1. 'claimed' -> Reunited list
+  // 2. 'active' -> All items that are not reunited
+  if (currentActiveTab.value === 'claimed') {
     list = list.filter(i => (i.status || '').toLowerCase() === 'claimed');
+  } else {
+    // All items that are NOT reunited
+    list = list.filter(i => (i.status || '').toLowerCase() !== 'claimed');
+
+    // Status dropdown filter within active items: 'lost' or 'found'
+    if (filters.status && filters.status !== 'all') {
+      const lower = filters.status.toLowerCase();
+      list = list.filter(i => (i.status || '').toLowerCase() === lower);
+    }
   }
 
   // Name filter
@@ -199,14 +246,72 @@ const filteredItems = computed(() => {
 
 // When active tab changes, update or clear status filter to match
 watch(currentActiveTab, () => {
-  fetchItems();
+  if (filters.status !== 'all') {
+    filters.status = 'all';
+  }
+  if (currentUser.value) {
+    fetchItems();
+  }
 });
+
+async function checkSession() {
+  authChecking.value = true;
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'include' });
+    if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        currentUser.value = data.user;
+        await Promise.all([fetchHealth(), fetchStats(), fetchItems()]);
+      } else {
+        currentUser.value = null;
+      }
+    } else {
+      currentUser.value = null;
+    }
+  } catch (err) {
+    console.error('Session check failed:', err);
+    currentUser.value = null;
+  } finally {
+    authChecking.value = false;
+  }
+}
+
+async function handleLoginSuccess(user) {
+  currentUser.value = user;
+  fetchHealth();
+  fetchStats();
+  fetchItems();
+  await nextTick();
+  if (toastRef.value) {
+    toastRef.value.show({
+      t: 'Welcome Back!',
+      m: `Signed in as ${user.fullName} (${user.studentId}).`,
+      variant: 'success'
+    });
+  }
+}
+
+async function handleLogout() {
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } catch (err) {
+    console.error('Logout failed:', err);
+  } finally {
+    currentUser.value = null;
+    items.value = [];
+  }
+}
 
 async function fetchHealth() {
   serverStatus.checking = true;
   const start = performance.now();
   try {
-    const res = await fetch('/api/health');
+    const res = await fetch('/api/health', { credentials: 'include' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     serverStatus.online = data.status === 'ok';
@@ -220,7 +325,7 @@ async function fetchHealth() {
 
 async function fetchStats() {
   try {
-    const res = await fetch('/api/stats');
+    const res = await fetch('/api/stats', { credentials: 'include' });
     if (!res.ok) return;
     const json = await res.json();
     if (json.data) {
@@ -242,7 +347,6 @@ async function fetchItems() {
   if (filters.category && filters.category !== 'all') params.append('category', filters.category);
   if (filters.location && filters.location !== 'all') params.append('location', filters.location);
 
-  // If status dropdown is specifically chosen
   if (filters.status && filters.status !== 'all') {
     params.append('status', filters.status);
   }
@@ -250,7 +354,11 @@ async function fetchItems() {
   const query = params.toString() ? `?${params.toString()}` : '';
 
   try {
-    const res = await fetch(`/api/items${query}`);
+    const res = await fetch(`/api/items${query}`, { credentials: 'include' });
+    if (res.status === 401) {
+      currentUser.value = null;
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     items.value = json.data || [];
@@ -275,7 +383,7 @@ function resetFilters() {
   filters.status = 'all';
   filters.category = 'all';
   filters.location = 'all';
-  currentActiveTab.value = 'found';
+  currentActiveTab.value = 'active';
   fetchItems();
   fetchStats();
   if (toastRef.value) {
@@ -297,6 +405,11 @@ function openClaimModal(item) {
   isClaimModalOpen.value = true;
 }
 
+function openReviewClaimsModal(item) {
+  selectedItemForReviewClaims.value = item;
+  isReviewClaimsModalOpen.value = true;
+}
+
 function openSpottedModal(item) {
   selectedItemForSpotted.value = item;
   isSpottedModalOpen.value = true;
@@ -310,12 +423,7 @@ function openInfoModal(type) {
 function handleItemCreated(newItem) {
   fetchItems();
   fetchStats();
-  // Automatically switch tab to match newly created item
-  if (newItem.status === 'Lost') {
-    currentActiveTab.value = 'lost';
-  } else {
-    currentActiveTab.value = 'found';
-  }
+  currentActiveTab.value = 'active';
   if (toastRef.value) {
     toastRef.value.show({
       t: newItem.status === 'Lost' ? 'Lost Item Broadcasted!' : 'Found Item Logged!',
@@ -325,15 +433,39 @@ function handleItemCreated(newItem) {
   }
 }
 
-function handleItemClaimed(updatedItem) {
+function handleItemClaimed(claim) {
+  fetchItems();
+  fetchStats();
+  if (toastRef.value) {
+    toastRef.value.show({
+      t: 'Claim Verification Submitted!',
+      m: 'Your claim has been recorded as Pending for owner review.',
+      variant: 'success'
+    });
+  }
+}
+
+function handleClaimApproved({ item }) {
   fetchItems();
   fetchStats();
   currentActiveTab.value = 'claimed';
   if (toastRef.value) {
     toastRef.value.show({
-      t: 'Claim Verification Recorded!',
-      m: `Ownership verification for "${updatedItem.name}" was recorded in SQLite.`,
+      t: 'Claim Approved!',
+      m: `Item "${item.name}" has been marked as reunited in the Reunited Archive.`,
       variant: 'success'
+    });
+  }
+}
+
+function handleClaimRejected({ item }) {
+  fetchItems();
+  fetchStats();
+  if (toastRef.value) {
+    toastRef.value.show({
+      t: 'Claim Rejected',
+      m: `Item "${item.name}" remains in active Found listings.`,
+      variant: 'info'
     });
   }
 }
@@ -361,8 +493,6 @@ function handleKeywordActivated(info) {
 }
 
 onMounted(() => {
-  fetchHealth();
-  fetchStats();
-  fetchItems();
+  checkSession();
 });
 </script>

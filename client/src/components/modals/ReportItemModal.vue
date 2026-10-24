@@ -51,30 +51,19 @@
           </div>
         </div>
 
-        <!-- Campus Location -->
+        <!-- Campus Location (Freeform Text Input) -->
         <div class="flex flex-col gap-1">
           <label for="report-location" class="font-label-md text-xs font-semibold text-on-surface">
             Campus Location *
           </label>
-          <div class="relative">
-            <select
-              id="report-location"
-              v-model="form.location"
-              class="w-full h-11 pl-3 pr-8 rounded-xl bg-surface-container-low text-on-surface font-body-md text-sm focus:outline-none focus:ring-2 focus:ring-primary border border-outline-variant/30 appearance-none cursor-pointer"
-              required
-            >
-              <option value="Main Library 3rd Floor">Main Library</option>
-              <option value="Student Union Dining Hall">Student Union</option>
-              <option value="Science Complex Room 204">Science Complex</option>
-              <option value="Engineering Hall Room B10">Engineering Hall</option>
-              <option value="North Rec Center Lockers">North Rec / Gym</option>
-              <option value="Dormitories / Quad Grounds">Dormitories / Housing</option>
-              <option value="Campus Bus Stop / Shuttle">Campus Transit / Bus Stop</option>
-            </select>
-            <span class="material-symbols-outlined pointer-events-none absolute right-2.5 top-3 text-[18px] text-outline">
-              arrow_drop_down
-            </span>
-          </div>
+          <input
+            id="report-location"
+            v-model.trim="form.location"
+            type="text"
+            class="w-full h-11 px-3.5 rounded-xl bg-surface-container-low text-on-surface font-body-md text-sm focus:outline-none focus:ring-2 focus:ring-primary border border-outline-variant/30"
+            :placeholder="type === 'lost' ? 'e.g. Science Complex Room 204, Library 3rd Floor...' : 'e.g. Student Union Dining Hall, North Rec Gym...'"
+            required
+          >
         </div>
       </div>
 
@@ -91,32 +80,6 @@
           placeholder="Mention stickers, scratches, lock screen details, engravings, or carabiner attachments..."
           required
         ></textarea>
-      </div>
-
-      <!-- Desk Location (for Found) or Contact Info (for Lost) -->
-      <div v-if="type === 'found'" class="flex flex-col gap-1">
-        <label for="report-desk" class="font-label-md text-xs font-semibold text-on-surface">
-          Current Physical Location or Drop-off Desk
-        </label>
-        <input
-          id="report-desk"
-          v-model.trim="form.desk_location"
-          type="text"
-          class="w-full h-11 px-3.5 rounded-xl bg-surface-container-low text-on-surface font-body-md text-sm focus:outline-none focus:ring-2 focus:ring-primary border border-outline-variant/30"
-          placeholder="e.g. Handed to Main Library Desk #4 (Ref #L-110)"
-        >
-      </div>
-      <div v-else class="flex flex-col gap-1">
-        <label for="report-contact" class="font-label-md text-xs font-semibold text-on-surface">
-          Your Campus Email or Phone
-        </label>
-        <input
-          id="report-contact"
-          v-model.trim="form.contact"
-          type="text"
-          class="w-full h-11 px-3.5 rounded-xl bg-surface-container-low text-on-surface font-body-md text-sm focus:outline-none focus:ring-2 focus:ring-primary border border-outline-variant/30"
-          placeholder="e.g. jordan.smith@state.edu"
-        >
       </div>
 
       <!-- Photo Picker / URL Option -->
@@ -221,10 +184,8 @@ const samplePhotos = [
 const form = reactive({
   name: '',
   category: 'electronics',
-  location: 'Main Library 3rd Floor',
+  location: '',
   description: '',
-  desk_location: '',
-  contact: '',
   image_url: ''
 });
 
@@ -233,9 +194,7 @@ watch(
   (val) => {
     if (val) {
       errorMessage.value = '';
-      if (props.type === 'found') {
-        form.desk_location = 'Main Library Desk #4';
-      }
+      form.location = '';
     }
   }
 );
@@ -258,18 +217,19 @@ async function handleSubmit() {
     const payload = {
       name: form.name.trim(),
       category: form.category,
-      location: form.location,
+      location: form.location.trim(),
       status: props.type === 'lost' ? 'Lost' : 'Found',
       description: form.description.trim(),
       image_url: form.image_url || null,
-      desk_location: props.type === 'found' ? (form.desk_location || 'Campus Front Desk') : null,
+      desk_location: null,
       reporter_name: props.type === 'lost' ? 'Student Member' : 'Campus Good Samaritan',
-      contact: form.contact || 'campus-findr@state.edu'
+      contact: null
     };
 
     const res = await fetch('/api/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 
@@ -280,9 +240,9 @@ async function handleSubmit() {
 
     // Reset fields
     form.name = '';
+    form.location = '';
     form.description = '';
     form.image_url = '';
-    form.contact = '';
 
     emit('created', data.data);
     handleClose();

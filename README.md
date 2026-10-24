@@ -20,8 +20,9 @@ FinalApp/
 ├── client/                                # Vue 3 Frontend
 │   ├── src/
 │   │   ├── components/
+│   │   │   ├── LoginView.vue              # Stitch Collegiate Authentication single-file component
 │   │   │   ├── common/                    # Shared Foundation Components
-│   │   │   │   ├── AppHeader.vue          # Fixed navigation header with live SQLite status & mobile drawer
+│   │   │   │   ├── AppHeader.vue          # Fixed navigation header with student profile, sign out & mobile drawer
 │   │   │   │   ├── AppFooter.vue          # Guidelines, support links & system status
 │   │   │   │   ├── BaseButton.vue         # Accessible button with variants & 44px touch targets
 │   │   │   │   ├── BaseBadge.vue          # Status pills (Found, Lost, Claimed)
@@ -30,11 +31,12 @@ FinalApp/
 │   │   │   ├── home/                      # Home Page Workspace Components
 │   │   │   │   ├── HeroWorkspace.vue      # Dual action launchpads ("I Lost Something" / "I Found an Item")
 │   │   │   │   ├── SearchFilterBar.vue    # Keyboard search (⌘K / /), feed tabs & quick facet dropdowns
-│   │   │   │   ├── ItemCard.vue           # High-density item card with media & action triggers
+│   │   │   │   ├── ItemCard.vue           # High-density item card with media, ownership badge & action triggers
 │   │   │   │   └── ItemGrid.vue           # 1-col mobile, 2-col tablet, 3-col desktop responsive card grid
 │   │   │   └── modals/                    # Interactive Workflow Modals
-│   │   │       ├── ReportItemModal.vue    # File Lost alert or Log Found item with photo picker
-│   │   │       ├── ClaimModal.vue         # Claim Belonging with Student ID verification
+│   │   │       ├── ReportItemModal.vue    # File Lost alert or Log Found item with creator association
+│   │   │       ├── ClaimModal.vue         # Claim Belonging with pre-populated Student ID verification
+│   │   │       ├── ReviewClaimsModal.vue  # Owner claim review, approval, and rejection workflow
 │   │   │       ├── SpottedModal.vue       # Handoff notice for spotted items
 │   │   │       ├── KeywordAlertModal.vue  # Campus keyword automated email matching
 │   │   │       └── InfoModal.vue          # Campus FAQs, Ownership Rules & Honor Code
@@ -100,14 +102,60 @@ npm run dev:client
 
 ## 📡 API Endpoints
 
+### System & Health
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/health` | Health check & SQLite database connectivity |
 | `GET` | `/api/stats` | Aggregated counts for total, found, lost, and claimed items |
+
+### Authentication (Demo Accounts)
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Sign in with demo credentials (`username`, `password`) |
+| `GET` | `/api/auth/me` | Fetch currently authenticated student session |
+| `POST` | `/api/auth/logout` | End session and clear session cookie |
+
+### Items & Ownership
+| Method | Endpoint | Description |
+|---|---|---|
 | `GET` | `/api/items` | Query items with `search`, `category`, `status`, `location` |
 | `GET` | `/api/items/:id` | Retrieve single item by ID |
-| `POST` | `/api/items` | Create a lost or found item record |
-| `POST` | `/api/items/:id/claim` | Verify ownership and transition status to `Claimed` |
+| `POST` | `/api/items` | Create lost or found item record (associated with authenticated student) |
+| `POST` | `/api/items/:id/claim` | Submit claim verification with Student ID & ownership proof (creates Pending claim) |
+
+### Owner Claim Review Workflow
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/items/:id/claims` | View all claims for a listing (restricted to listing owner) |
+| `POST` | `/api/claims/:id/approve` | Approve claim atomically; moves item to Reunited Archive |
+| `POST` | `/api/claims/:id/reject` | Reject claim; item remains in active Found listings |
+| `GET` | `/api/claims/my` | View all claims submitted by current student |
+
+---
+
+## 👥 Demo Authentication Accounts
+
+The application includes five preset demonstration accounts:
+
+| Username | Password | Student ID | Full Name |
+|---|---|---|---|
+| `student1` | `demo123` | `STU001` | Student One |
+| `student2` | `demo123` | `STU002` | Student Two |
+| `student3` | `demo123` | `STU003` | Student Three |
+| `student4` | `demo123` | `STU004` | Student Four |
+| `student5` | `demo123` | `STU005` | Student Five |
+
+> **Security Notice**: These are demonstration accounts designed for evaluation and local testing only. Passwords are validated server-side, sessions are managed via HTTP cookies, and demo credentials are never exposed in frontend code.
+
+---
+
+## 🧪 Automated Testing
+
+Run the full end-to-end authentication and claim workflow test suite:
+```bash
+npm test
+```
+All 42 assertions test session management, account switching, self-claim prevention, owner-only authorization, atomic claim approvals, and SQLite database persistence.
 
 ---
 
