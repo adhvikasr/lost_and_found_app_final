@@ -14,7 +14,10 @@ build/
 *.sqlite
 *.sqlite3
 *.db
-server/data/*.db
+*.db-journal
+*.db-wal
+*.db-shm
+server/data/*.db*
 
 # Logs & cache
 *.log

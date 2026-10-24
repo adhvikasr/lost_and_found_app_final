@@ -1,6 +1,9 @@
-import { isSupabaseConfigured } from '../db/supabase.js';
+import { isDatabaseConnected, getItemCount, getDbPath } from '../db/sqlite.js';
 
 export const getHealth = (req, res) => {
+  const dbConnected = isDatabaseConnected();
+  const count = getItemCount();
+
   res.status(200).json({
     status: 'ok',
     app: 'Campus Lost and Found',
@@ -9,7 +12,10 @@ export const getHealth = (req, res) => {
     timestamp: new Date().toISOString(),
     services: {
       server: 'running',
-      database: isSupabaseConfigured() ? 'connected' : 'not_configured'
+      database: dbConnected ? 'connected' : 'disconnected',
+      engine: 'sqlite (better-sqlite3)',
+      databaseFile: getDbPath(),
+      totalItems: count
     }
   });
 };

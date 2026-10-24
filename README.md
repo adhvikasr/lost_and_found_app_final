@@ -1,6 +1,6 @@
-# Campus Lost & Found
+# Campus Lost & Found (SQLite Edition)
 
-A full-stack application for managing and recovering lost and found items on campus, built with HTML5, CSS3, Vanilla JavaScript, Node.js, Express, and Supabase.
+A full-stack campus Lost & Found application with an Express backend, persistent **SQLite** database (`better-sqlite3`), and vanilla JavaScript frontend.
 
 ---
 
@@ -12,18 +12,20 @@ FinalApp/
 │   ├── css/
 │   │   └── styles.css          # Responsive styling (mobile-first)
 │   ├── js/
-│   │   └── app.js              # Client logic and backend health check
+│   │   └── app.js              # Client logic, health check, and item CRUD
 │   └── index.html              # Main frontend entry point
 ├── server/                     # Backend API server
-│   ├── data/                   # Data storage directory
+│   ├── data/                   # SQLite database storage directory
+│   │   └── campus-lost-found.db# Persistent SQLite database file
 │   ├── src/
 │   │   ├── controllers/        # Request controllers
-│   │   │   └── health.controller.js
-│   │   ├── db/                 # Database configuration
-│   │   │   └── supabase.js
+│   │   │   ├── health.controller.js
+│   │   │   └── items.controller.js
+│   │   ├── db/                 # Database configuration & queries
+│   │   │   └── sqlite.js       # SQLite connection with better-sqlite3
 │   │   ├── routes/             # Express API routes
-│   │   │   └── api.routes.js
-│   │   ├── app.js              # Express app setup & middleware
+│   │   │   └── api.routes.js   # Mounts /health and /items
+│   │   ├── app.js              # Express app setup, CORS, static serving
 │   │   └── index.js            # Server entry point & listener
 │   ├── .env.example            # Environment variables template
 │   ├── .env                    # Local environment config
@@ -34,16 +36,43 @@ FinalApp/
 
 ---
 
+## 💾 Database (SQLite with `better-sqlite3`)
+
+The application automatically creates and connects to the SQLite database file at:
+```
+server/data/campus-lost-found.db
+```
+- **Engine**: `better-sqlite3`
+- **Concurrency**: Write-Ahead Logging (`WAL` mode) enabled for high performance.
+- **Auto-Initialization**: Creates the `items` table and indexes automatically on startup if they do not exist.
+- **Safety**: Uses strictly parameterized SQL queries (`?` placeholders) to prevent SQL injection. Existing data is never deleted or truncated on restarts.
+
+### Database Schema
+```sql
+CREATE TABLE IF NOT EXISTS items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  location TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('Lost', 'Found')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_items_created_at ON items (created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_items_category ON items (category);
+CREATE INDEX IF NOT EXISTS idx_items_status ON items (status);
+```
+
+---
+
 ## 🚀 Run Commands
 
 ### 1. Install Dependencies
-Run the following from the project root:
 ```bash
 npm --prefix server install
 ```
 
-### 2. Start the Backend Server (and serve Frontend)
-From the project root:
+### 2. Start the Backend Server
 ```bash
 npm run dev
 # or
@@ -52,49 +81,43 @@ npm start
 The server will start at:
 - **Web App (Frontend)**: [http://localhost:3001](http://localhost:3001)
 - **Health Check API**: [http://localhost:3001/api/health](http://localhost:3001/api/health)
-
-### 3. Open the Frontend Directly
-You can also open the client directly in the browser:
-```bash
-open client/index.html
-# or from root:
-npm run open:client
-```
-When opened directly (`file:///`), the client script will connect to the backend at `http://localhost:3001/api/health`.
+- **Items API**: [http://localhost:3001/api/items](http://localhost:3001/api/items)
 
 ---
 
-## 🔍 Verification
+## 🔍 How to Verify Persistence Across Restarts
 
-1. **Backend Health Check**:
+1. **Start the server**:
    ```bash
-   curl http://localhost:3001/api/health
+   npm start
    ```
-   Expected response:
-   ```json
-   {
-     "status": "ok",
-     "app": "Campus Lost and Found",
-     "version": "1.0.0",
-     "environment": "development",
-     "timestamp": "2026-10-24T...",
-     "services": {
-       "server": "running",
-       "database": "not_configured"
-     }
-   }
+2. **Add a test item** via the UI or `curl`:
+   ```bash
+   curl -X POST http://localhost:3001/api/items \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Green Notebook","category":"stationery","location":"Library 3rd Floor","status":"Lost"}'
    ```
-
-2. **Frontend UI**:
-   Navigate to [http://localhost:3001](http://localhost:3001). The status grid will show green indicators for the frontend client and backend API.
+3. **Stop the server** (`Ctrl+C` or kill process).
+4. **Restart the server**:
+   ```bash
+   npm start
+   ```
+5. **Verify the item persists**:
+   ```bash
+   curl http://localhost:3001/api/items
+   ```
+   Or query SQLite directly:
+   ```bash
+   sqlite3 server/data/campus-lost-found.db "SELECT * FROM items WHERE name='Green Notebook';"
+   ```
+   The record will be retrieved intact from disk.
 
 ---
 
-## ⚙️ Environment Variables (`server/.env`)
+## ⚙️ Environment Configuration (`server/.env`)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | HTTP port for Express backend | `3001` |
 | `NODE_ENV` | Environment mode (`development`/`production`) | `development` |
-| `SUPABASE_URL` | Supabase Project URL | Optional |
-| `SUPABASE_KEY` | Supabase anon public API key | Optional |
+| `DB_PATH` | Path to persistent SQLite database file | `./data/campus-lost-found.db` |
